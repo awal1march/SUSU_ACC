@@ -1,23 +1,10 @@
-const Database = require("better-sqlite3");
-const db = new Database("susu.db");
+const { Pool } = require("pg");
 
-db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT,
-  phone TEXT UNIQUE,
-  password TEXT,
-  wallet REAL DEFAULT 0
-);
+const isProduction = process.env.NODE_ENV === "production";
 
-CREATE TABLE IF NOT EXISTS transactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  reference TEXT UNIQUE,
-  user_id INTEGER,
-  amount REAL
-);
-`);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
+});
 
-console.log("SQLite ready ✅");
-
-module.exports = db;
+module.exports = pool;

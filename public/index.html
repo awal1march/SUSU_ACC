@@ -1,99 +1,759 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <title>SUSU App</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://js.paystack.co/v1/inline.js"></script>
 
-  <style>
-    body { font-family: Arial; background:#0f172a; margin:0; color:white; }
+<title>SUSU Dashboard</title>
 
-    .app { max-width:420px; margin:auto; min-height:100vh; display:flex; flex-direction:column; }
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    header { background:#16a34a; padding:15px; text-align:center; font-weight:bold; }
+<script src="https://js.paystack.co/v1/inline.js"></script>
 
-    .content { padding:15px; flex:1; }
 
-    .card { background:#1e293b; padding:15px; border-radius:10px; margin-bottom:10px; }
+<style>
 
-    input { width:100%; padding:12px; margin:5px 0; border-radius:8px; border:none; }
+*{
+box-sizing:border-box;
+font-family:"Segoe UI",sans-serif;
+}
 
-    button { width:100%; padding:12px; background:#22c55e; border:none; border-radius:8px; color:white; font-weight:bold; margin-top:5px; }
 
-    .hidden { display:none; }
+body{
 
-    .nav { display:flex; background:#1e293b; }
+margin:0;
+background:#f8fafc;
+color:#1e293b;
 
-    .nav button { flex:1; padding:12px; background:none; border:none; color:white; }
+}
 
-    .active { background:#22c55e; }
 
-    .balance { font-size:22px; text-align:center; color:#22c55e; }
+header{
 
-    #out { text-align:center; color:yellow; }
-  </style>
-</head>
+height:70px;
+background:#16a34a;
+color:white;
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:0 30px;
+font-size:22px;
+font-weight:bold;
+
+}
+
+
+.app{
+
+display:flex;
+min-height:100vh;
+
+}
+
+
+
+.sidebar{
+
+width:240px;
+background:#14532d;
+padding:20px;
+
+}
+
+
+.sidebar button{
+
+width:100%;
+padding:15px;
+margin-bottom:12px;
+border:none;
+border-radius:10px;
+background:#166534;
+color:white;
+cursor:pointer;
+font-weight:bold;
+
+}
+
+
+.sidebar button:hover{
+
+background:#22c55e;
+
+}
+
+
+
+.content{
+
+flex:1;
+padding:30px;
+
+}
+
+
+
+.card{
+
+background:white;
+padding:25px;
+border-radius:15px;
+margin-bottom:20px;
+box-shadow:0 5px 15px #0002;
+
+}
+
+
+
+.card h3{
+
+color:#166534;
+
+}
+
+
+
+input{
+
+width:100%;
+padding:12px;
+margin:8px 0;
+border:1px solid #cbd5e1;
+border-radius:8px;
+
+}
+
+
+
+.action{
+
+width:100%;
+padding:12px;
+margin-top:10px;
+border:none;
+border-radius:8px;
+background:#16a34a;
+color:white;
+font-weight:bold;
+cursor:pointer;
+
+}
+
+
+
+.action:hover{
+
+background:#15803d;
+
+}
+
+
+
+.balance{
+
+background:linear-gradient(
+135deg,
+#166534,
+#22c55e
+);
+
+padding:30px;
+border-radius:15px;
+color:white;
+font-size:35px;
+font-weight:bold;
+text-align:center;
+
+}
+
+
+
+.dashboard{
+
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+gap:20px;
+
+}
+
+
+
+.hidden{
+
+display:none;
+
+}
+
+
+
+table{
+
+width:100%;
+border-collapse:collapse;
+
+}
+
+
+
+th,td{
+
+padding:12px;
+border-bottom:1px solid #ddd;
+text-align:center;
+
+}
+
+
+
+#out{
+
+color:red;
+font-weight:bold;
+text-align:center;
+
+}
+
+
+
+.danger{
+
+background:#dc2626!important;
+
+}
+
+
+
+.status{
+
+font-weight:bold;
+color:#166534;
+
+}
+
+
+
+@media(max-width:800px){
+
+.app{
+
+display:block;
+
+}
+
+
+.sidebar{
+
+width:100%;
+display:flex;
+flex-wrap:wrap;
+
+}
+
+
+.sidebar button{
+
+width:48%;
+
+}
+
+
+.content{
+
+padding:15px;
+
+}
+
+
+}
+
+
+</style>
 
 <body>
 
+<header>
+    <div>💰 SUSU APP</div>
+    <div>Smart Savings System</div>
+</header>
+
+
 <div class="app">
 
-  <header>SUSU APP 💰</header>
 
-  <div class="content">
+<!-- ================= SIDEBAR ================= -->
 
-    <!-- AUTH -->
-    <div id="auth">
-      <div class="card">
-        <h3>Register</h3>
-        <input id="name" placeholder="Name">
-        <input id="phone" placeholder="Phone">
-        <input id="password" type="password" placeholder="Password">
-        <button id="registerBtn">Register</button>
-      </div>
+<div class="sidebar">
 
-      <div class="card">
-        <h3>Login</h3>
-        <input id="lphone" placeholder="Phone">
-        <input id="lpass" type="password" placeholder="Password">
-        <button id="loginBtn">Login</button>
-      </div>
-    </div>
 
-    <!-- WALLET -->
-    <div id="wallet" class="hidden">
+<button onclick="showTab('auth')">
+👤 Account
+</button>
 
-      <div class="card">
-        <h3>Balance</h3>
-        <div class="balance" id="bal">GHS 0.00</div>
-        <button id="balanceBtn">Refresh</button>
-      </div>
 
-      <div class="card">
-        <h3>Deposit</h3>
-        <input id="email" placeholder="Email">
-        <input id="amount" placeholder="Amount">
-        <button id="payBtn">Deposit</button>
-      </div>
+<button onclick="showTab('groups')">
+👥 Groups
+</button>
 
-      <div class="card">
-        <button id="logoutBtn">Logout</button>
-      </div>
 
-    </div>
+<button onclick="showTab('wallet')">
+💳 Wallet
+</button>
 
-    <p id="out"></p>
 
-  </div>
 
-  <div class="nav">
-    <button id="tabAuth" class="active">Auth</button>
-    <button id="tabWallet">Wallet</button>
-  </div>
+<!-- ADMIN -->
+
+<button id="randomizeBtn"
+class="action"
+style="display:none;">
+
+🎲 Randomize Members
+
+</button>
+
+
+
+<button id="payoutBtn"
+class="action"
+style="display:none;">
+
+💰 Process Payout
+
+</button>
+
+
+
+<button id="logoutBtn"
+class="danger">
+
+Logout
+
+</button>
+
 
 </div>
 
+
+
+
+
+<!-- ================= CONTENT ================= -->
+
+<div class="content">
+
+
+
+
+
+<!-- ================= AUTH ================= -->
+
+
+<div id="auth">
+
+
+<div class="card">
+
+<h3>Create Account</h3>
+
+
+<input id="name"
+placeholder="Full name">
+
+
+<input id="phone"
+placeholder="Phone number">
+
+
+<input id="password"
+type="password"
+placeholder="Password">
+
+
+<button id="registerBtn"
+class="action">
+
+Register
+
+</button>
+
+
+</div>
+
+
+
+
+
+<div class="card">
+
+
+<h3>Login</h3>
+
+
+<input id="lphone"
+placeholder="Phone number">
+
+
+<input id="lpass"
+type="password"
+placeholder="Password">
+
+
+<button id="loginBtn"
+class="action">
+
+Login
+
+</button>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+<!-- ================= GROUPS ================= -->
+
+
+<div id="groups"
+class="hidden">
+
+
+<div class="card">
+
+
+<h3>Create SUSU Group</h3>
+
+
+<input id="groupName"
+placeholder="Group Name">
+
+
+<input id="groupAmount"
+placeholder="Contribution Amount">
+
+
+<input id="maxMembers"
+placeholder="Maximum Members">
+
+
+<button id="createGroupBtn"
+class="action">
+
+Create Group
+
+</button>
+
+
+</div>
+
+
+
+
+
+<div class="card">
+
+
+<h3>Join Existing Group</h3>
+
+
+<input id="joinGroupId"
+placeholder="Enter Group ID">
+
+
+<button id="joinGroupBtn"
+class="action">
+
+Join Group
+
+</button>
+
+
+</div>
+
+
+
+
+
+<div class="card">
+
+
+<h3>Group Information</h3>
+
+
+<div id="groupInfo">
+
+No group selected
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+<div class="card">
+
+
+<h3>
+👥 Group Members
+</h3>
+
+
+
+<p id="randomStatus">
+
+Waiting for randomization ⏳
+
+</p>
+
+
+
+
+<table id="membersTable">
+
+
+<thead>
+
+<tr>
+
+<th>Position</th>
+
+<th>Name</th>
+
+<th>Status</th>
+
+<th>Action</th>
+
+</tr>
+
+
+</thead>
+
+
+
+<tbody id="membersBody">
+
+
+<tr>
+
+<td colspan="4">
+
+No members yet
+
+</td>
+
+</tr>
+
+
+</tbody>
+
+
+
+</table>
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+<!-- ================= WALLET ================= -->
+
+
+<div id="wallet"
+class="hidden">
+
+
+
+
+
+<div class="dashboard">
+
+
+
+<div class="card">
+
+
+<h3>
+Wallet Balance
+</h3>
+
+
+
+<div class="balance"
+id="bal">
+
+GHS 0.00
+
+</div>
+
+
+
+<button id="balanceBtn"
+class="action">
+
+Refresh Balance
+
+</button>
+
+
+
+</div>
+
+
+
+
+
+
+<div class="card">
+
+
+<h3>
+Current Receiver
+</h3>
+
+
+<p id="receiverName">
+
+No receiver loaded
+
+</p>
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+<!-- WALLET DEPOSIT -->
+
+<div class="card">
+
+
+<h3>
+Deposit Money
+</h3>
+
+
+
+<input id="email"
+placeholder="Email Address">
+
+
+
+<input id="depositAmount"
+placeholder="Deposit Amount">
+
+
+
+<button id="depositBtn"
+class="action">
+
+Deposit Wallet
+
+</button>
+
+
+</div>
+
+
+
+
+
+
+
+<!-- CONTRIBUTION -->
+
+<div class="card">
+
+
+<h3>
+Pay SUSU Contribution
+</h3>
+
+
+
+<input id="contributionAmount"
+placeholder="Contribution Amount">
+
+
+
+<button id="contributionBtn"
+class="action">
+
+Pay Contribution
+
+</button>
+
+
+
+</div>
+
+
+
+
+
+
+
+<div class="card">
+
+
+<button id="logoutBtn2"
+class="danger">
+
+Logout
+
+</button>
+
+
+</div>
+
+
+
+
+</div>
+
+
+
+
+
+
+<p id="out"></p>
+
+
+</div>
+
+
+</div>
+
+
+
+
 <script src="app.js"></script>
 
+
 </body>
-</html>
