@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ path: "../.env" });
 
 const db = require("../db");
 
@@ -82,6 +82,7 @@ async function initDatabase() {
 
 
         // CONTRIBUTIONS TABLE
+        console.log("Creating contributions table...");
         await db.query(`
             CREATE TABLE IF NOT EXISTS contributions (
 
@@ -121,6 +122,7 @@ async function initDatabase() {
 
 
         // PAYOUTS TABLE
+        console.log("Creating payouts table...");
         await db.query(`
             CREATE TABLE IF NOT EXISTS payouts (
 
@@ -166,6 +168,7 @@ async function initDatabase() {
 
 
         // WALLET TRANSACTION HISTORY
+        console.log("Creating wallet_transactions table...");
         await db.query(`
             CREATE TABLE IF NOT EXISTS wallet_transactions (
 
@@ -237,6 +240,16 @@ async function initDatabase() {
 }
 
 }
+
+initDatabase()
+    .then(() => {
+        console.log("Initialization complete");
+        process.exit(0);
+    })
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
 
 
 module.exports = initDatabase;
