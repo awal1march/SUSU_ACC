@@ -4,8 +4,8 @@ console.log("APP JS LOADED ✅");
 
 
 // ===================== API SWITCH =====================
-//const API = "http://localhost:3000";
-const API= "https://susu-acc.onrender.com"
+const API = "http://localhost:3000";
+//const API= "https://susu-acc.onrender.com"
 
 
 // ===================== STATE =====================
@@ -207,7 +207,15 @@ return show(data.message || "Login failed ❌");
 
 
 
-token=data.token;
+token = data.token;
+
+if(!token){
+
+    show("Login token missing ❌");
+
+    return;
+
+}
 
 
 
@@ -329,8 +337,15 @@ console.log("Token in localStorage:", localStorage.getItem("token"));
 
 
 // ===================== PAYSTACK PAYMENT =====================
+async function depositWallet(){
 
+console.log("DEPOSIT FUNCTION STARTED");
+
+if(!token)
+return show("Login required ❌");
+}
 // ================= WALLET DEPOSIT =================
+
 
 async function depositWallet(){
 
@@ -395,11 +410,10 @@ paymentType:"wallet"
 
 );
 
-
-
 const payment =
 await response.json();
 
+console.log("PAYSTACK INIT RESPONSE:", payment);
 
 
 if(!response.ok){
@@ -435,9 +449,13 @@ callback:function(response){
 
 
 fetch(
-
-`${API}/paystack/verify/${response.reference}`
-
+`${API}/paystack/verify/${response.reference}`,
+{
+headers:{
+"Authorization":
+"Bearer "+token
+}
+}
 )
 
 .then(res=>res.json())
@@ -1427,5 +1445,27 @@ show("Remove member failed ❌");
 
 }
 
+
+}
+async function loadGroupData(){
+
+    const groupId = localStorage.getItem("groupId");
+
+    if(!groupId){
+        show("No group selected ❌");
+        return;
+    }
+
+
+    console.log("Loading group data:", groupId);
+
+
+    await loadMembers(groupId);
+
+    await loadCurrentReceiver(groupId);
+
+    await loadGroupDetails();
+
+    await checkAdmin(groupId);
 
 }

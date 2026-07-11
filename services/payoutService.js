@@ -322,7 +322,7 @@ WHERE id=$1
     groupId,
     totalMembers
 ]
-);cd 
+);
 
 
 

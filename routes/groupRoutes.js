@@ -1023,126 +1023,84 @@ message:"Payout failed"
 // ================= PAY CONTRIBUTION FROM WALLET =================
 
 
-// ================= PAY CONTRIBUTION FROM WALLET =================
 
-router.post("/pay", authMiddleware, async(req,res)=>{
 
-const client = await db.connect();
-
+router.post("/pay", auth, async(req,res)=>{
 
 try{
 
-
-const {
-    groupId
-}=req.body;
-
-
-
-if(!groupId){
-
-return res.status(400).json({
-
-message:"Group ID required ❌"
-
-});
-
-}
-
-
+const {groupId, amount} = req.body;
 
 const userId = req.user.id;
 
 
-
-await client.query("BEGIN");
-
-
-
-
-// ================= GET GROUP CONTRIBUTION AMOUNT =================
-
-
-const groupResult = await client.query(
-
+// Find the member record inside this group
+const memberResult = await db.query(
 `
-SELECT contribution_amount
-FROM groups
-WHERE id=$1
+SELECT id
+FROM group_member
+WHERE user_id=$1
+AND group_id=$2
+`,
+[userId, groupId]
+);
+
+
+if(memberResult.rows.length === 0){
+
+return res.status(400).json({
+message:"You are not a member of this group"
+});
+
+}
+
+
+const groupMemberId = memberResult.rows[0].id;
+
+
+// Insert contribution
+await db.query(
+`
+INSERT INTO contributions
+(
+group_member_id,
+amount,
+payment_status,
+paid,
+contribution_date,
+group_id
+)
+VALUES($1,$2,$3,$4,NOW(),$5)
 `,
 [
+groupMemberId,
+amount,
+"success",
+true,
 groupId
 ]
-
 );
 
 
+res.json({
 
-if(groupResult.rows.length === 0){
-
-
-await client.query("ROLLBACK");
-
-
-return res.status(404).json({
-
-message:"Group not found ❌"
+message:"Contribution paid successfully ✅"
 
 });
 
 
 }
+catch(error){
 
+console.log("PAY CONTRIBUTION ERROR ❌",error);
 
-
-const amount =
-Number(groupResult.rows[0].contribution_amount);
-
-
-
-
-
-
-
-// ================= CHECK MEMBERSHIP =================
-
-
-const member = await client.query(
-
-`
-SELECT *
-FROM group_members
-WHERE group_id=$1
-AND user_id=$2
-`,
-[
-groupId,
-userId
-]
-
-);
-
-
-
-if(member.rows.length === 0){
-
-
-await client.query("ROLLBACK");
-
-
-return res.status(403).json({
-
-message:"You are not a member of this group ❌"
-
+res.status(500).json({
+message:error.message
 });
-
 
 }
 
-
-
-
-
+});
 
 
 // ================= CHECK PREVIOUS PAYMENT =================
