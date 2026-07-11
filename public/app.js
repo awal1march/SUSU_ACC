@@ -1269,23 +1269,25 @@ members.forEach(member=>{
 
 table.innerHTML += `
 <tr>
-    <td>${member.position}</td>
-    <td>${member.name}</td>
-    <td>${
-        data.randomized
-        ? "Official Payout Order"
-        : "Waiting for Randomization"
-    }</td>
-    <td>
-        <button
-            class="danger"
-            onclick="removeMember(${groupId}, ${member.user_id})">
-            🗑 Delete
-        </button>
-    </td>
+
+<td>${member.position}</td>
+
+<td>${member.name}</td>
+
+<td>
+Waiting for Randomization
+</td>
+
+<td>
+<button
+class="danger"
+onclick="removeMember(${groupId}, ${member.user_id})">
+🗑 Delete
+</button>
+</td>
+
 </tr>
 `;
-
 });
 
 
