@@ -4,8 +4,8 @@ console.log("APP JS LOADED ✅");
 
 
 // ===================== API SWITCH =====================
-//const API = "http://localhost:3000";
-const API= "https://susu-acc.onrender.com"
+const API = "http://localhost:3000";
+//const API= "https://susu-acc.onrender.com"
 
 
 // ===================== STATE =====================
@@ -1256,94 +1256,25 @@ const data = await response.json();
 
 console.log("MEMBER DATA:",data);
 
-}
-catch(error){
 
-console.log(error);
-
-}
-
-}
 const members = data.members;
-
-
-
-const statusText =
-document.getElementById("randomStatus");
-
-
-
-if(data.randomized){
-
-statusText.innerText =
-"Official payout order generated ✅";
-
-}
-else{
-
-statusText.innerText =
-"Waiting for randomization ⏳";
-
-}
-
 
 
 const table = document.getElementById("membersBody");
 
-table.innerHTML = "";
+table.innerHTML="";
+
+
 members.forEach(member=>{
 
-
 table.innerHTML += `
-
 <tr>
-
-<td>
-${member.position}
-</td>
-
-
-<td>
-${member.name}
-</td>
-
-
-<td>
-
-${
-data.randomized
-?
-"Official Payout Order"
-:
-"Waiting for Randomization"
-}
-
-</td>
-
-
-
-<td>
-
-<button 
-class="danger"
-onclick="removeMember(${localStorage.getItem('groupId')},${member.user_id})">
-
-🗑 Delete
-
-</button>
-
-
-</td>
-
-
+<td>${member.position}</td>
+<td>${member.name}</td>
 </tr>
-
 `;
 
 });
-
-
-
 
 
 }
