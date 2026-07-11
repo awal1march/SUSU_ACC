@@ -5,6 +5,7 @@ const groupRoutes = require("./routes/groupRoutes");
 
 
 
+
 const app = express();
 
 app.use(cors());
@@ -25,17 +26,48 @@ app.use("/auth", require("./routes/auth"));
 app.use("/wallet", require("./routes/wallet"));
 app.use("/paystack", require("./routes/paystack"));
 
-
 app.get("/", (req, res) => {
   res.send("SUSU API running ✅");
 });
 
+
 const PORT = process.env.PORT || 3000;
 
-const initDatabase = require("./initDatabase");
+const initDatabase = require("./database/initDatabase");
 
-initDatabase();
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function startServer() {
+
+  try {
+
+    await initDatabase();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+
+
+  } catch (error) {
+
+    console.error("Server startup failed ❌", error);
+
+  }
+
+}
+
+
+startServer();
+
+// app.get("/", (req, res) => {
+//   res.send("SUSU API running ✅");
+// });
+
+// const PORT = process.env.PORT || 3000;
+
+// const initDatabase = require("./database/initDatabase");
+
+// initDatabase();
+
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+// });
