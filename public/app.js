@@ -1269,8 +1269,20 @@ members.forEach(member=>{
 
 table.innerHTML += `
 <tr>
-<td>${member.position}</td>
-<td>${member.name}</td>
+    <td>${member.position}</td>
+    <td>${member.name}</td>
+    <td>${
+        data.randomized
+        ? "Official Payout Order"
+        : "Waiting for Randomization"
+    }</td>
+    <td>
+        <button
+            class="danger"
+            onclick="removeMember(${groupId}, ${member.user_id})">
+            🗑 Delete
+        </button>
+    </td>
 </tr>
 `;
 
@@ -1282,24 +1294,8 @@ catch(error){
 
 console.log(error);
 
+console.log("MEMBER DATA:", data);
 }
-
-}
-async function loadGroupData(){
-
-const groupId =
-document.getElementById("groupId").value;
-
-
-if(!groupId){
-
-return show("Enter Group ID ❌");
-
-}
-
-await loadCurrentReceiver(groupId);
-
-await loadMembers(groupId);
 
 }
 

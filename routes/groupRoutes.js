@@ -366,7 +366,10 @@ ORDER BY gm.position ASC
 [groupId]
 );
 
-
+console.log("MEMBERS SENT TO FRONTEND:", {
+    randomized: groupResult.rows[0].randomized,
+    members: membersResult.rows
+});
 
 res.json({
 
