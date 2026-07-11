@@ -4,8 +4,8 @@ console.log("APP JS LOADED ✅");
 
 
 // ===================== API SWITCH =====================
-//const API = "http://localhost:3000";
-const API= "https://susu-acc.onrender.com"
+const API = "http://localhost:3000";
+//const API= "https://susu-acc.onrender.com"
 
 
 // ===================== STATE =====================
@@ -1239,26 +1239,31 @@ error
 }
 async function loadMembers(groupId){
 
-
 try{
 
-
 const response = await fetch(
-
-`${API}/groups/${groupId}/members`
-
+`${API}/groups/${groupId}/members`,
+{
+headers:{
+"Authorization":
+"Bearer " + localStorage.getItem("token")
+}
+}
 );
-
 
 
 const data = await response.json();
 
-
-
 console.log("MEMBER DATA:",data);
 
+}
+catch(error){
 
+console.log(error);
 
+}
+
+}
 const members = data.members;
 
 

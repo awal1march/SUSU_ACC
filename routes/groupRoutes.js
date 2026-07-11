@@ -311,24 +311,23 @@ error:error.message
 
 // ================= GROUP MEMBERS =================
 
-router.get("/:groupId/members", async(req,res)=>{
+// ================= GROUP MEMBERS =================
+
+router.get("/:groupId/members", authMiddleware, async(req,res)=>{
 
 try{
 
 const {groupId}=req.params;
 
 
-// Get group randomization status
-
+// Check if group exists
 const groupResult = await db.query(
-
 `
 SELECT randomized
 FROM groups
 WHERE id=$1
 `,
 [groupId]
-
 );
 
 
@@ -336,47 +335,36 @@ if(groupResult.rows.length===0){
 
 return res.status(404).json({
 
-message:"Group not found"
+message:"Group not found ❌"
 
 });
 
 }
 
 
-
-
-// Always get members
+// Get all members from database
 
 const membersResult = await db.query(
-
 `
 SELECT
 
+u.id AS user_id,
 u.name,
-
-gm.user_id,
-
+u.phone,
 gm.position
-
 
 FROM group_members gm
 
-
 JOIN users u
-
 ON u.id = gm.user_id
-
 
 WHERE gm.group_id=$1
 
-
-ORDER BY gm.position
+ORDER BY gm.position ASC
 
 `,
 [groupId]
-
 );
-
 
 
 
@@ -391,11 +379,13 @@ membersResult.rows
 });
 
 
-
 }
 catch(error){
 
-console.log(error);
+console.log(
+"LOAD MEMBERS ERROR ❌",
+error
+);
 
 
 res.status(500).json({
@@ -404,12 +394,9 @@ message:"Server error"
 
 });
 
-
 }
 
-
 });
-
 
 // ================= CURRENT RECEIVER =================
 
