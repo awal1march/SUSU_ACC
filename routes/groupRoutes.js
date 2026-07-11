@@ -494,14 +494,6 @@ message:"Server error"
 });
 
 
-
-
-
-
-
-
-
-
 // ================= RANDOMIZE MEMBERS =================
 
 
@@ -556,9 +548,6 @@ message:"Group not found"
 });
 
 }
-
-
-
 
 const data=group.rows[0];
 
@@ -1365,14 +1354,7 @@ payoutMessage =
 }
 
 
-
-
-
-
-
 await client.query("COMMIT");
-
-
 
 
 res.json({
@@ -1424,6 +1406,53 @@ client.release();
 
 }
 
+
+});
+
+// ================= MY GROUPS =================
+
+router.get("/my-groups", authMiddleware, async(req,res)=>{
+
+try{
+
+const userId = req.user.id;
+
+
+const result = await db.query(
+`
+SELECT
+g.id,
+g.group_name,
+g.max_members,
+g.randomized
+
+FROM groups g
+
+JOIN group_members gm
+ON g.id = gm.group_id
+
+WHERE gm.user_id=$1
+
+`,
+[userId]
+);
+
+
+res.json({
+groups: result.rows
+});
+
+
+}
+catch(error){
+
+console.log(error);
+
+res.status(500).json({
+message:"Failed to load groups"
+});
+
+}
 
 });
 

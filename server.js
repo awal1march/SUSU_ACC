@@ -6,12 +6,14 @@ const groupRoutes = require("./routes/groupRoutes");
 
 
 
+
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
-app.use("/groups", groupRoutes);
+
 
 
 // 🔥 REQUEST LOGGER (VERY IMPORTANT)
@@ -25,6 +27,7 @@ app.use((req, res, next) => {
 app.use("/auth", require("./routes/auth"));
 app.use("/wallet", require("./routes/wallet"));
 app.use("/paystack", require("./routes/paystack"));
+app.use("/groups", groupRoutes);
 
 app.get("/", (req, res) => {
   res.send("SUSU API running ✅");
