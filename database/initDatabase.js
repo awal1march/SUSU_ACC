@@ -241,15 +241,5 @@ async function initDatabase() {
 
 }
 
-initDatabase()
-    .then(() => {
-        console.log("Initialization complete");
-        process.exit(0);
-    })
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
-
-
+console.log("Database initialization function ready");
 module.exports = initDatabase;
