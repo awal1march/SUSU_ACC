@@ -1023,145 +1023,140 @@ message:"Payout failed"
 // ================= PAY CONTRIBUTION FROM WALLET =================
 
 
+// ================= PAY CONTRIBUTION FROM WALLET =================
 
+// ================= PAY CONTRIBUTION FROM WALLET =================
 
-router.post("/pay", auth, async(req,res)=>{
+router.post("/pay", authMiddleware, async(req,res)=>{
+
+const client = await db.connect();
 
 try{
 
-const {groupId, amount} = req.body;
-
-const userId = req.user.id;
+const {groupId}=req.body;
 
 
-// Find the member record inside this group
-const memberResult = await db.query(
+if(!groupId){
+
+return res.status(400).json({
+message:"Group ID required ❌"
+});
+
+}
+
+
+const userId=req.user.id;
+
+
+await client.query("BEGIN");
+
+
+
+// GET GROUP CONTRIBUTION AMOUNT
+
+const groupResult = await client.query(
+`
+SELECT contribution_amount
+FROM groups
+WHERE id=$1
+`,
+[groupId]
+);
+
+
+if(groupResult.rows.length===0){
+
+await client.query("ROLLBACK");
+
+return res.status(404).json({
+message:"Group not found ❌"
+});
+
+}
+
+
+const amount =
+Number(groupResult.rows[0].contribution_amount);
+
+
+
+
+// FIND GROUP MEMBER
+
+const memberResult = await client.query(
 `
 SELECT id
 FROM group_member
-WHERE user_id=$1
-AND group_id=$2
-`,
-[userId, groupId]
-);
-
-
-if(memberResult.rows.length === 0){
-
-return res.status(400).json({
-message:"You are not a member of this group"
-});
-
-}
-
-
-const groupMemberId = memberResult.rows[0].id;
-
-
-// Insert contribution
-await db.query(
-`
-INSERT INTO contributions
-(
-group_member_id,
-amount,
-payment_status,
-paid,
-contribution_date,
-group_id
-)
-VALUES($1,$2,$3,$4,NOW(),$5)
-`,
-[
-groupMemberId,
-amount,
-"success",
-true,
-groupId
-]
-);
-
-
-res.json({
-
-message:"Contribution paid successfully ✅"
-
-});
-
-
-}
-catch(error){
-
-console.log("PAY CONTRIBUTION ERROR ❌",error);
-
-res.status(500).json({
-message:error.message
-});
-
-}
-
-});
-
-
-// ================= CHECK PREVIOUS PAYMENT =================
-
-
-const alreadyPaid = await client.query(
-
-`
-SELECT *
-FROM contributions
 WHERE group_id=$1
 AND user_id=$2
-AND status='paid'
 `,
 [
 groupId,
 userId
 ]
-
 );
 
 
 
-
-
-if(alreadyPaid.rows.length > 0){
-
+if(memberResult.rows.length===0){
 
 await client.query("ROLLBACK");
 
-
-return res.status(400).json({
-
-message:"Contribution already paid ❌"
-
+return res.status(403).json({
+message:"You are not a member of this group ❌"
 });
 
+}
+
+
+
+const groupMemberId =
+memberResult.rows[0].id;
+
+
+
+
+// CHECK IF ALREADY PAID
+
+const alreadyPaid = await client.query(
+`
+SELECT id
+FROM contributions
+WHERE group_member_id=$1
+AND group_id=$2
+AND paid=true
+`,
+[
+groupMemberId,
+groupId
+]
+);
+
+
+
+if(alreadyPaid.rows.length>0){
+
+await client.query("ROLLBACK");
+
+return res.status(400).json({
+message:"Contribution already paid ❌"
+});
 
 }
 
 
 
 
-
-
-
-// ================= CHECK WALLET =================
-
+// CHECK WALLET
 
 const walletResult = await client.query(
-
 `
 SELECT COALESCE(wallet,0) AS wallet
 FROM users
 WHERE id=$1
 FOR UPDATE
 `,
-[
-userId
-]
-
+[userId]
 );
 
 
@@ -1171,20 +1166,13 @@ Number(walletResult.rows[0].wallet);
 
 
 
-
-
 if(wallet < amount){
-
 
 await client.query("ROLLBACK");
 
-
 return res.status(400).json({
-
 message:"Insufficient wallet balance ❌"
-
 });
-
 
 }
 
@@ -1192,14 +1180,9 @@ message:"Insufficient wallet balance ❌"
 
 
 
-
-
-
-// ================= DEDUCT WALLET =================
-
+// DEDUCT WALLET
 
 await client.query(
-
 `
 UPDATE users
 SET wallet = wallet - $1
@@ -1209,41 +1192,36 @@ WHERE id=$2
 amount,
 userId
 ]
-
 );
 
 
 
 
 
-
-
-
-// ================= SAVE CONTRIBUTION =================
-
+// SAVE CONTRIBUTION
 
 await client.query(
-
 `
 INSERT INTO contributions
 (
+group_member_id,
 group_id,
-user_id,
 amount,
-status,
-paid_at
+payment_status,
+paid,
+contribution_date
 )
 
-VALUES($1,$2,$3,$4,NOW())
+VALUES($1,$2,$3,$4,$5,NOW())
 
 `,
 [
+groupMemberId,
 groupId,
-userId,
 amount,
-"paid"
+"success",
+true
 ]
-
 );
 
 
@@ -1252,42 +1230,28 @@ amount,
 
 
 
-
-
-
-// ================= CHECK ALL MEMBERS PAID =================
-
+// CHECK ALL MEMBERS PAID
 
 const members = await client.query(
-
 `
 SELECT COUNT(*)
-FROM group_members
+FROM group_member
 WHERE group_id=$1
 `,
-[
-groupId
-]
-
+[groupId]
 );
 
 
 
 const paid = await client.query(
-
 `
-SELECT COUNT(DISTINCT user_id)
+SELECT COUNT(*)
 FROM contributions
 WHERE group_id=$1
-AND status='paid'
+AND paid=true
 `,
-[
-groupId
-]
-
+[groupId]
 );
-
-
 
 
 
@@ -1295,37 +1259,33 @@ const totalMembers =
 Number(members.rows[0].count);
 
 
-
 const totalPaid =
 Number(paid.rows[0].count);
 
 
 
-
-let payoutMessage="";
-
-
-
-if(totalMembers === totalPaid){
+let message =
+"Contribution paid successfully ✅";
 
 
-payoutMessage =
-" All members paid. Ready for payout.";
+if(totalMembers===totalPaid){
+
+message +=
+" All members have paid. Ready for payout.";
 
 }
 
 
+
 await client.query("COMMIT");
+
 
 
 res.json({
 
 success:true,
 
-message:
-"Contribution paid successfully ✅"
-+
-payoutMessage,
+message,
 
 amount
 
@@ -1333,11 +1293,8 @@ amount
 
 
 
-
-
 }
 catch(error){
-
 
 await client.query("ROLLBACK");
 
@@ -1346,7 +1303,6 @@ console.log(
 "PAY CONTRIBUTION ERROR ❌",
 error
 );
-
 
 
 res.status(500).json({
@@ -1361,15 +1317,12 @@ error:error.message
 }
 finally{
 
-
 client.release();
-
 
 }
 
 
 });
-
 // ================= MY GROUPS =================
 
 router.get("/my-groups", authMiddleware, async(req,res)=>{
