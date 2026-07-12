@@ -3,7 +3,6 @@ const db = require("../db");
 
 async function processPayout(groupId){
 
-
 const client = await db.connect();
 
 
@@ -20,7 +19,11 @@ await client.query("BEGIN");
 const groupResult = await client.query(
 
 `
-SELECT *
+SELECT 
+id,
+randomized,
+current_position,
+max_members
 FROM groups
 WHERE id=$1
 FOR UPDATE
@@ -60,22 +63,18 @@ throw new Error(
 
 // ================= CHECK MEMBERS =================
 
-// ================= CHECK ALL MEMBERS PAID =================
 
-
-const membersResult = await db.query(
+const membersResult = await client.query(
 
 `
 SELECT COUNT(*)
 FROM group_members
 WHERE group_id=$1
 `,
-[
-groupId
-]
+
+[groupId]
 
 );
-
 
 
 const totalMembers =
@@ -83,19 +82,34 @@ Number(membersResult.rows[0].count);
 
 
 
+if(totalMembers === 0){
+
+throw new Error(
+"No members found"
+);
+
+}
 
 
-const paidResult = await db.query(
+
+
+// ================= CHECK ALL CONTRIBUTIONS PAID =================
+
+
+const paidResult = await client.query(
 
 `
-SELECT COUNT(DISTINCT user_id)
+SELECT COUNT(DISTINCT group_member_id)
 FROM contributions
 WHERE group_id=$1
-AND status IN ('paid','completed')
+AND paid=true
+AND payment_status='success'
 `,
+
 [groupId]
 
 );
+
 
 
 const totalPaid =
@@ -103,14 +117,12 @@ Number(paidResult.rows[0].count);
 
 
 
+console.log({
 
-
-console.log(
-"TOTAL MEMBERS:",
 totalMembers,
-"TOTAL PAID:",
 totalPaid
-);
+
+});
 
 
 
@@ -123,28 +135,29 @@ throw new Error(
 }
 
 
+
+
+
+
 // ================= FIND RECEIVER =================
 
 
-const receiverResult = await db.query(
+const receiverResult = await client.query(
 
 `
-SELECT user_id, position
+SELECT 
+user_id,
+position
 FROM group_members
 WHERE group_id=$1
 AND position=$2
 `,
+
 [
 groupId,
 group.current_position
 ]
 
-);
-
-
-console.log(
-"RECEIVER DATA:",
-receiverResult.rows
 );
 
 
@@ -165,54 +178,66 @@ throw new Error(
 
 
 
-// ================= CALCULATE PAYOUT =================
 
 
-const totalResult = await db.query(
+
+// ================= CALCULATE TOTAL =================
+
+
+const amountResult = await client.query(
 
 `
 SELECT SUM(amount) AS total
 FROM contributions
 WHERE group_id=$1
-AND status IN ('paid','completed')
+AND paid=true
+AND payment_status='success'
 `,
+
 [groupId]
 
 );
 
 
+
 const payoutAmount =
-Number(totalResult.rows[0].total || 0);
+Number(amountResult.rows[0].total);
 
 
-console.log(
-"TOTAL PAYOUT AMOUNT:",
-payoutAmount
+
+if(!payoutAmount || payoutAmount <=0){
+
+throw new Error(
+"No payout amount available"
 );
-
-
-if(payoutAmount <= 0){
-
-    throw new Error(
-        "No payout amount available"
-    );
 
 }
 
 
-// ================= CHECK EXISTING PAYOUT =================
 
 
-const existingPayout =
-await client.query(
+console.log(
+"PAYOUT AMOUNT:",
+payoutAmount
+);
+
+
+
+
+
+
+
+
+// ================= CHECK DUPLICATE PAYOUT =================
+
+
+const existing = await client.query(
 
 `
-SELECT *
+SELECT id
 FROM payouts
 WHERE group_id=$1
 AND position=$2
-AND cycle_number=$3
-
 `,
 
 [
@@ -224,10 +249,10 @@ receiver.position
 
 
 
-if(existingPayout.rows.length > 0){
+if(existing.rows.length > 0){
 
 throw new Error(
-"Payout already completed for this position"
+"Payout already processed for this position"
 );
 
 }
@@ -236,7 +261,9 @@ throw new Error(
 
 
 
-// ================= SAVE PAYOUT =================
+
+
+// ================= CREATE PAYOUT RECORD =================
 
 
 await client.query(
@@ -248,18 +275,26 @@ group_id,
 user_id,
 amount,
 position,
+status,
 created_at
 )
 
-VALUES($1,$2,$3,$4,NOW())
+VALUES($1,$2,$3,$4,$5,NOW())
 
 `,
 
 [
+
 groupId,
+
 receiver.user_id,
+
 payoutAmount,
-receiver.position
+
+receiver.position,
+
+"pending"
+
 ]
 
 );
@@ -270,73 +305,16 @@ receiver.position
 
 
 
-// ================= ADD MONEY TO RECEIVER WALLET =================
-
-
-await client.query(
-
-`
-UPDATE users
-SET wallet = COALESCE(wallet,0)+$1
-WHERE id=$2
-`,
-
-[
-payoutAmount,
-receiver.user_id
-]
-
-);
-
-// ================= COMPLETE CURRENT CONTRIBUTIONS =================
-
-await db.query(
-`
-UPDATE contributions
-SET status='completed'
-WHERE group_id=$1
-AND status='paid'
-`,
-[
-    groupId
-]
-);
-
-
-// ================= MOVE TO NEXT SUSU CYCLE =================
-
-// ================= MOVE TO NEXT RECEIVER =================
-
-await db.query(
-`
-UPDATE groups
-SET current_position =
-CASE
-    WHEN current_position >= $2
-        THEN 1
-    ELSE current_position + 1
-END
-WHERE id=$1
-`,
-[
-    groupId,
-    totalMembers
-]
-);
-
-
-
-
-// ================= CLOSE CURRENT CONTRIBUTIONS =================
+// ================= COMPLETE CONTRIBUTIONS =================
 
 
 await client.query(
 
 `
 UPDATE contributions
-SET status='completed'
+SET payment_status='completed'
 WHERE group_id=$1
-AND status='paid'
+AND payment_status='success'
 `,
 
 [groupId]
@@ -349,7 +327,8 @@ AND status='paid'
 
 
 
-// ================= MOVE NEXT POSITION =================
+
+// ================= MOVE TO NEXT RECEIVER =================
 
 
 await client.query(
@@ -358,17 +337,21 @@ await client.query(
 UPDATE groups
 SET current_position =
 CASE
+
 WHEN current_position >= $2
 THEN 1
+
 ELSE current_position + 1
+
 END
+
 WHERE id=$1
 
 `,
 
 [
 groupId,
-totalMembers
+group.max_members
 ]
 
 );
@@ -377,51 +360,41 @@ totalMembers
 
 
 
+
+
 await client.query("COMMIT");
-
-if(totalMembers === totalPaid){
-
-    try{
-
-        await processPayout(groupId);
-
-        console.log(
-        "Automatic payout completed ✅"
-        );
-
-    }
-    catch(error){
-
-        console.log(
-        "Automatic payout failed:",
-        error.message
-        );
-
-    }
-
-}
 
 
 
 console.log(
-"PAYOUT COMPLETED ✅"
+"PAYOUT CREATED SUCCESSFULLY ✅"
 );
 
 
 
 return {
 
+
 success:true,
 
-receiver:receiver.user_id,
+receiver:
 
-amount:payoutAmount
+receiver.user_id,
+
+amount:
+
+payoutAmount,
+
+
+message:
+"Payout created. Awaiting transfer."
 
 };
 
 
 
 }
+
 catch(error){
 
 
@@ -436,22 +409,16 @@ error.message
 
 throw error;
 
-
 }
-finally{
 
+finally{
 
 client.release();
 
+}
 
 }
 
-
-
-}
-
-
-
-module.exports = {
+module.exports={
 processPayout
 };

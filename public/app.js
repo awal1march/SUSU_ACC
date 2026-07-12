@@ -207,15 +207,7 @@ return show(data.message || "Login failed ❌");
 
 
 
-token = data.token;
-
-if(!token){
-
-    show("Login token missing ❌");
-
-    return;
-
-}
+token=data.token;
 
 
 
@@ -337,15 +329,8 @@ console.log("Token in localStorage:", localStorage.getItem("token"));
 
 
 // ===================== PAYSTACK PAYMENT =====================
-async function depositWallet(){
 
-console.log("DEPOSIT FUNCTION STARTED");
-
-if(!token)
-return show("Login required ❌");
-}
 // ================= WALLET DEPOSIT =================
-
 
 async function depositWallet(){
 
@@ -410,10 +395,11 @@ paymentType:"wallet"
 
 );
 
+
+
 const payment =
 await response.json();
 
-console.log("PAYSTACK INIT RESPONSE:", payment);
 
 
 if(!response.ok){
@@ -449,13 +435,9 @@ callback:function(response){
 
 
 fetch(
-`${API}/paystack/verify/${response.reference}`,
-{
-headers:{
-"Authorization":
-"Bearer "+token
-}
-}
+
+`${API}/paystack/verify/${response.reference}`
+
 )
 
 .then(res=>res.json())
@@ -499,98 +481,205 @@ show("Deposit failed ❌");
 async function payContribution(){
 
 
-const groupId =
-localStorage.getItem("groupId");
+    const groupId =
+    localStorage.getItem("groupId");
 
 
-if(!groupId){
 
-return show("Join a group first ❌");
+    if(!groupId){
+
+        return show("Join a group first ❌");
+
+    }
+
+
+
+    if(!token){
+
+        return show("Login required ❌");
+
+    }
+
+
+
+    try{
+
+
+        const response = await fetch(
+
+            `${API}/paystack/init`,
+
+            {
+
+                method:"POST",
+
+                headers:{
+
+
+                    "Content-Type":"application/json",
+
+
+                    "Authorization":
+                    "Bearer "+token
+
+
+                },
+
+
+                body:JSON.stringify({
+
+
+                    email:
+                    currentUser.email,
+
+
+                    groupId,
+
+
+                    paymentType:"contribution"
+
+
+                })
+
+
+            }
+
+        );
+
+
+
+
+        const payment =
+        await response.json();
+
+
+
+        if(!response.ok){
+
+            return show(payment.message);
+
+        }
+
+
+
+
+        const handler =
+        PaystackPop.setup({
+
+
+            key:
+            "pk_live_b99f70e00e05b7a053b2a0c053e6fafca414d645",
+
+
+
+            email:
+            currentUser.email,
+
+
+
+            amount:
+            Number(payment.amount) * 100,
+
+
+
+            currency:"GHS",
+
+
+
+            ref:
+            payment.reference,
+
+
+
+            callback:function(response){
+
+
+
+                fetch(
+
+                `${API}/paystack/verify/${response.reference}`,
+
+                {
+
+
+                    method:"GET",
+
+
+                    headers:{
+
+
+                    "Authorization":
+                    "Bearer "+token
+
+
+                    }
+
+
+                }
+
+                )
+
+
+                .then(res=>res.json())
+
+
+                .then(data=>{
+
+
+                    show(data.message);
+
+
+
+                    if(data.success){
+
+
+                        loadMembers(groupId);
+
+
+                        loadGroupDetails();
+
+
+                    }
+
+
+
+                });
+
+
+
+            }
+
+
+
+        });
+
+
+
+        handler.openIframe();
+
+
+
+    }
+
+
+    catch(error){
+
+
+        console.log(
+        "PAY CONTRIBUTION ERROR:",
+        error
+        );
+
+
+        show(
+        "Payment failed ❌"
+        );
+
+
+    }
+
 
 }
-
-
-
-const amount =
-document.getElementById("contributionAmount").value;
-
-
-
-try{
-
-
-const response = await fetch(
-
-`${API}/groups/pay`,
-
-{
-
-
-method:"POST",
-
-
-headers:{
-
-
-"Content-Type":"application/json",
-
-
-"Authorization":
-"Bearer "+token
-
-
-},
-
-
-body:JSON.stringify({
-
-groupId,
-
-amount:Number(amount)
-
-})
-
-
-}
-
-);
-
-
-
-const data =
-await response.json();
-
-
-
-show(data.message);
-
-
-
-if(response.ok){
-
-balance();
-
-loadMembers(groupId);
-
-loadCurrentReceiver(groupId);
-
-}
-
-
-
-}
-catch(error){
-
-console.log("CONTRIBUTION ERROR:", error);
-
-show(
-"Contribution payment failed ❌ " + error.message
-);
-
-}
-
-}
-
 async function processPayout(){
 
 const groupId = localStorage.getItem("groupId");
@@ -1161,6 +1250,7 @@ show(
 
 
 loadMembers(groupId);
+loadGroupDetails();
 
 
 
@@ -1257,56 +1347,106 @@ error
 }
 async function loadMembers(groupId){
 
+
 try{
 
+
 const response = await fetch(
-`${API}/groups/${groupId}/members`,
-{
-headers:{
-"Authorization":
-"Bearer " + localStorage.getItem("token")
-}
-}
+
+`${API}/groups/${groupId}/members`
+
 );
+
 
 
 const data = await response.json();
 
+
+
 console.log("MEMBER DATA:",data);
+
 
 
 const members = data.members;
 
 
+
+const statusText =
+document.getElementById("randomStatus");
+
+
+
+if(data.randomized){
+
+statusText.innerText =
+"Official payout order generated ✅";
+
+}
+else{
+
+statusText.innerText =
+"Waiting for randomization ⏳";
+
+}
+
+
+
 const table = document.getElementById("membersBody");
 
-table.innerHTML="";
-
-
+table.innerHTML = "";
 members.forEach(member=>{
 
+
 table.innerHTML += `
+
 <tr>
 
-<td>${member.position}</td>
-
-<td>${member.name}</td>
-
 <td>
-Waiting for Randomization
+${member.position}
 </td>
 
+
 <td>
-<button
+${member.name}
+</td>
+
+
+<td>
+
+${
+data.randomized
+?
+"Official Payout Order"
+:
+"Waiting for Randomization"
+}
+
+</td>
+
+
+
+<td>
+
+<button 
 class="danger"
-onclick="removeMember(${groupId}, ${member.user_id})">
+onclick="removeMember(${localStorage.getItem('groupId')},${member.user_id})">
+
 🗑 Delete
+
 </button>
+
+
 </td>
+
 
 </tr>
+
 `;
+
 });
+
+
+
 
 
 }
@@ -1314,8 +1454,24 @@ catch(error){
 
 console.log(error);
 
-console.log("MEMBER DATA:", data);
 }
+
+}
+async function loadGroupData(){
+
+const groupId =
+document.getElementById("groupId").value;
+
+
+if(!groupId){
+
+return show("Enter Group ID ❌");
+
+}
+
+await loadCurrentReceiver(groupId);
+
+await loadMembers(groupId);
 
 }
 
@@ -1445,27 +1601,5 @@ show("Remove member failed ❌");
 
 }
 
-
-}
-async function loadGroupData(){
-
-    const groupId = localStorage.getItem("groupId");
-
-    if(!groupId){
-        show("No group selected ❌");
-        return;
-    }
-
-
-    console.log("Loading group data:", groupId);
-
-
-    await loadMembers(groupId);
-
-    await loadCurrentReceiver(groupId);
-
-    await loadGroupDetails();
-
-    await checkAdmin(groupId);
 
 }

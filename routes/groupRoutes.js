@@ -981,13 +981,8 @@ message:"Only admin can process payout"
 
 }
 
-
-
-
 const result =
 await processPayout(groupId);
-
-
 
 res.json({
 
@@ -998,7 +993,6 @@ message:"Payout completed successfully",
 result
 
 });
-
 
 
 }
@@ -1199,64 +1193,105 @@ userId
 
 
 // SAVE CONTRIBUTION
+// CHECK IF MEMBER ALREADY PAID
+
+// CHECK DUPLICATE PAYMENT
+
+const existingContribution = await client.query(
+
+`
+SELECT id
+FROM contributions
+WHERE group_member_id=$1
+AND group_id=$2
+AND paid=true
+`,
+
+[
+groupMemberId,
+groupId
+]
+
+);
+
+
+if(existingContribution.rows.length > 0){
+
+    throw new Error(
+        "Contribution already paid"
+    );
+
+}
+
+
+
+// INSERT CONTRIBUTION
 
 await client.query(
+
 `
 INSERT INTO contributions
 (
 group_member_id,
 group_id,
 amount,
+payment_reference,
 payment_status,
 paid,
 contribution_date
 )
 
-VALUES($1,$2,$3,$4,$5,NOW())
+VALUES($1,$2,$3,$4,$5,$6,NOW())
 
 `,
+
 [
 groupMemberId,
 groupId,
 amount,
+ref,
 "success",
 true
 ]
+
 );
-
-
-
-
 
 
 
 // CHECK ALL MEMBERS PAID
 
 const members = await client.query(
+
 `
 SELECT COUNT(*)
 FROM group_members
 WHERE group_id=$1
 `,
+
 [groupId]
+
 );
 
 
 
 const paid = await client.query(
+
 `
 SELECT COUNT(*)
 FROM contributions
 WHERE group_id=$1
 AND paid=true
 `,
+
 [groupId]
+
 );
 
 
 
 const totalMembers =
 Number(members.rows[0].count);
+
 
 
 const totalPaid =
@@ -1268,13 +1303,13 @@ let message =
 "Contribution paid successfully ✅";
 
 
-if(totalMembers===totalPaid){
+
+if(totalMembers === totalPaid){
 
 message +=
 " All members have paid. Ready for payout.";
 
 }
-
 
 
 await client.query("COMMIT");
