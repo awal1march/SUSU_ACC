@@ -636,7 +636,7 @@ async function payContribution(){
                         loadMembers(groupId);
 
 
-                        loadGroupDetails();
+                        
 
 
                     }
@@ -1353,7 +1353,20 @@ try{
 
 const response = await fetch(
 
-`${API}/groups/${groupId}/members`
+`${API}/groups/${groupId}/members`,
+
+{
+
+headers:{
+
+
+"Authorization":
+"Bearer "+localStorage.getItem("token")
+
+
+}
+
+}
 
 );
 
@@ -1364,6 +1377,14 @@ const data = await response.json();
 
 
 console.log("MEMBER DATA:",data);
+
+
+
+if(!response.ok){
+
+return show(data.message);
+
+}
 
 
 
@@ -1391,9 +1412,17 @@ statusText.innerText =
 
 
 
-const table = document.getElementById("membersBody");
 
-table.innerHTML = "";
+
+const table =
+document.getElementById("membersBody");
+
+
+
+table.innerHTML="";
+
+
+
 members.forEach(member=>{
 
 
@@ -1424,12 +1453,11 @@ data.randomized
 </td>
 
 
-
 <td>
 
 <button 
 class="danger"
-onclick="removeMember(${localStorage.getItem('groupId')},${member.user_id})">
+onclick="removeMember(${groupId},${member.user_id})">
 
 🗑 Delete
 
@@ -1443,16 +1471,21 @@ onclick="removeMember(${localStorage.getItem('groupId')},${member.user_id})">
 
 `;
 
+
 });
 
 
 
-
-
 }
+
 catch(error){
 
-console.log(error);
+
+console.log(
+"LOAD MEMBERS ERROR:",
+error
+);
+
 
 }
 

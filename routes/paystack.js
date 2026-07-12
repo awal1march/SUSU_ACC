@@ -96,145 +96,211 @@ const auth = require("../middleware/auth");
 
 // ===================== INITIALIZE PAYMENT =====================
 
-router.post("/init", auth, async (req, res) => {
+router.post("/init", auth, async(req,res)=>{
 
-    try {
+try{
 
-        const {
-            email,
-            groupId
-        } = req.body;
 
+const {
+email,
+amount,
+groupId,
+paymentType
 
-        // ================= VALIDATE INPUT =================
+}=req.body;
 
-        // if(!email || !groupId){
 
-        //     return res.status(400).json({
 
-        //         message:"Email and group ID are required"
+let finalAmount;
 
-        //     });
 
-        // }
 
+// ================= WALLET =================
 
-        // ================= GET GROUP CONTRIBUTION AMOUNT =================
+if(paymentType === "wallet"){
 
-        const group = await db.query(
 
-            `
-            SELECT contribution_amount
-            FROM groups
-            WHERE id=$1
-            `,
+if(!amount){
 
-            [groupId]
+return res.status(400).json({
 
-        );
-
-
-        if(group.rows.length === 0){
-
-            return res.status(404).json({
-
-                message:"Group not found"
-
-            });
-
-        }
-
-
-        const amount =
-        Number(group.rows[0].contribution_amount);
-
-
-
-        if(amount <= 0){
-
-            return res.status(400).json({
-
-                message:"Invalid contribution amount"
-
-            });
-
-        }
-
-
-        // ================= PAYSTACK INITIALIZATION =================
-
-        const response = await axios.post(
-
-            "https://api.paystack.co/transaction/initialize",
-
-            {
-
-                email,
-
-                amount: amount * 100,
-
-                metadata: {
-
-                    userId: req.user.id,
-
-                    groupId: groupId
-
-                }
-
-            },
-
-            {
-
-                headers: {
-
-                    Authorization:
-                    `Bearer ${process.env.PAYSTACK_SECRET}`,
-
-                    "Content-Type":
-                    "application/json"
-
-                }
-
-            }
-
-        );
-
-
-        console.log(
-            "PAYSTACK REFERENCE:",
-            response.data.data.reference
-        );
-
-
-        res.json({
-
-            ...response.data.data,
-
-            amount
-
-        });
-
-
-    }
-
-    catch(err){
-
-        console.log(
-            "INIT ERROR ❌",
-            err.response?.data || err.message
-        );
-
-
-        res.status(500).json({
-
-            message:"Payment initialization failed"
-
-        });
-
-    }
+message:"Amount is required"
 
 });
 
+}
+
+
+finalAmount = Number(amount);
+
+
+}
+
+
+
+// ================= CONTRIBUTION =================
+
+else if(paymentType === "contribution"){
+
+
+
+if(!groupId){
+
+return res.status(400).json({
+
+message:"Group ID is required"
+
+});
+
+}
+
+
+
+const group = await db.query(
+
+`
+SELECT contribution_amount
+FROM groups
+WHERE id=$1
+`,
+
+[groupId]
+
+);
+
+
+
+if(group.rows.length === 0){
+
+
+return res.status(404).json({
+
+message:"Group not found"
+
+});
+
+
+}
+
+
+
+finalAmount =
+Number(group.rows[0].contribution_amount);
+
+
+
+}
+
+
+
+
+else{
+
+
+return res.status(400).json({
+
+message:"Invalid payment type"
+
+});
+
+
+}
+
+
+
+
+const response = await axios.post(
+
+"https://api.paystack.co/transaction/initialize",
+
+{
+
+
+email,
+
+
+amount:
+finalAmount * 100,
+
+
+
+metadata:{
+
+
+userId:req.user.id,
+
+groupId:groupId || null,
+
+paymentType
+
+
+}
+
+
+},
+
+
+{
+
+headers:{
+
+
+Authorization:
+`Bearer ${process.env.PAYSTACK_SECRET}`,
+
+"Content-Type":"application/json"
+
+
+}
+
+}
+
+
+);
+
+
+
+res.json({
+
+reference:
+response.data.data.reference,
+
+
+authorization_url:
+response.data.data.authorization_url,
+
+
+amount:
+finalAmount
+
+
+});
+
+
+
+}
+
+catch(error){
+
+
+console.log(
+"PAYSTACK INIT ERROR:",
+error.response?.data || error.message
+);
+
+
+
+res.status(500).json({
+
+message:"Payment initialization failed"
+
+});
+
+
+}
+
+
+});
 
 
 
