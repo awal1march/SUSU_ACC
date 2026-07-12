@@ -1086,7 +1086,7 @@ Number(groupResult.rows[0].contribution_amount);
 const memberResult = await client.query(
 `
 SELECT id
-FROM group_member
+FROM group_members
 WHERE group_id=$1
 AND user_id=$2
 `,
@@ -1235,7 +1235,7 @@ true
 const members = await client.query(
 `
 SELECT COUNT(*)
-FROM group_member
+FROM group_members
 WHERE group_id=$1
 `,
 [groupId]
