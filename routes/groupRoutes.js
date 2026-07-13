@@ -477,307 +477,224 @@ message:"Server error"
 // ================= RANDOMIZE MEMBERS =================
 
 
+// ================= RANDOMIZE MEMBERS =================
+
 router.post("/:groupId/randomize", authMiddleware, async(req,res)=>{
 
-    const {groupId} = req.params;
-    const userId = req.user.id;
+const {groupId}=req.params;
+const userId=req.user.id;
 
-    const client = await db.connect();
+const client = await db.connect();
 
-    try {
 
-        await client.query("BEGIN");
+try{
 
+await client.query("BEGIN");
 
-        console.log("Logged user:", userId);
 
+// GET GROUP
 
-        // ================= GET GROUP =================
+const groupResult = await client.query(
+`
+SELECT
+creator_id,
+randomized,
+max_members
+FROM groups
+WHERE id=$1
+FOR UPDATE
+`,
+[groupId]
+);
 
-        const groupResult = await client.query(
-            `
-            SELECT
-                creator_id,
-                randomized,
-                max_members
-            FROM groups
-            WHERE id=$1
-            FOR UPDATE
-            `,
-            [groupId]
-        );
 
 
-        if(groupResult.rows.length === 0){
+if(groupResult.rows.length===0){
 
-            await client.query("ROLLBACK");
+await client.query("ROLLBACK");
 
-            return res.status(404).json({
-                message:"Group not found ❌"
-            });
+return res.status(404).json({
+message:"Group not found ❌"
+});
 
-        }
+}
 
 
-        const group = groupResult.rows[0];
+const group = groupResult.rows[0];
 
 
-        console.log(
-            "Group creator:",
-            group.creator_id
-        );
 
+// CHECK ADMIN
 
-        // ================= CHECK ADMIN =================
+if(Number(group.creator_id)!==Number(userId)){
 
-        if(Number(group.creator_id) !== Number(userId)){
 
+await client.query("ROLLBACK");
 
-            await client.query("ROLLBACK");
 
-            return res.status(403).json({
+return res.status(403).json({
 
-                message:"Only group admin can randomize ❌"
-
-            });
-
-        }
-
-
-
-        // ================= CHECK ALREADY RANDOMIZED =================
-
-        if(group.randomized){
-
-
-            await client.query("ROLLBACK");
-
-            return res.status(400).json({
-
-                message:"Already randomized ❌"
-
-            });
-
-        }
-
-
-
-
-        // ================= CHECK GROUP SIZE =================
-
-
-        const countResult = await client.query(
-            `
-            SELECT COUNT(*) AS total
-            FROM group_members
-            WHERE group_id=$1
-            `,
-            [groupId]
-        );
-
-
-        const totalMembers =
-        Number(countResult.rows[0].total);
-
-
-
-        if(totalMembers !== Number(group.max_members)){
-
-
-            await client.query("ROLLBACK");
-
-
-            return res.status(400).json({
-
-                message:"Group is not complete yet ❌"
-
-            });
-
-        }
-
-
-
-
-        // ================= GET MEMBERS =================
-
-
-        const membersResult = await client.query(
-            `
-            SELECT id
-            FROM group_members
-            WHERE group_id=$1
-            ORDER BY id
-            `,
-            [groupId]
-        );
-
-
-
-        let memberIds =
-        membersResult.rows.map(
-            member => member.id
-        );
-
-
-
-        // ================= SHUFFLE =================
-
-
-        memberIds.sort(
-            () => Math.random() - 0.5
-        );
-
-
-
-
-
-        // ================= TEMPORARY POSITIONS =================
-
-        for(let i=0; i<memberIds.length; i++){
-
-
-            await client.query(
-                `
-                UPDATE group_members
-                SET position=$1
-                WHERE id=$2
-                `,
-                [
-                    1000 + i,
-                    memberIds[i]
-                ]
-            );
-
-
-        }
-
-
-
-
-
-        // ================= FINAL POSITIONS =================
-
-
-        for(let i=0; i<memberIds.length; i++){
-
-
-            await client.query(
-                `
-                UPDATE group_members
-                SET position=$1
-                WHERE id=$2
-                `,
-                [
-                    i + 1,
-                    memberIds[i]
-                ]
-            );
-
-
-        }
-
-
-
-
-
-
-        // ================= LOCK RANDOMIZATION =================
-
-
-        await client.query(
-            `
-            UPDATE groups
-            SET randomized=true
-            WHERE id=$1
-            `,
-            [groupId]
-        );
-
-
-
-
-
-        await client.query("COMMIT");
-
-
-
-        res.json({
-
-            success:true,
-
-            message:"Members randomized successfully ✅"
-
-        });
-
-
-
-    }
-    catch(error){
-
-
-        await client.query("ROLLBACK");
-
-
-        console.log(
-            "RANDOMIZATION ERROR ❌",
-            error
-        );
-
-
-        res.status(500).json({
-
-            message:"Randomization failed ❌",
-
-            error:error.message
-
-        });
-
-
-    }
-    finally{
-
-        client.release();
-
-    }
-
+message:"Only group admin can randomize ❌"
 
 });
 
+}
 
-// Lock randomization
 
 
-await db.query(
+// CHECK ALREADY RANDOMIZED
 
+if(group.randomized){
+
+
+await client.query("ROLLBACK");
+
+
+return res.status(400).json({
+
+message:"Already randomized ❌"
+
+});
+
+}
+
+
+
+// CHECK MEMBERS
+
+const countResult = await client.query(
 `
-UPDATE groups
-
-SET randomized=true
-
-WHERE id=$1
-
+SELECT COUNT(*) AS total
+FROM group_members
+WHERE group_id=$1
 `,
-
 [groupId]
+);
 
+
+
+if(Number(countResult.rows[0].total)!==Number(group.max_members)){
+
+
+await client.query("ROLLBACK");
+
+
+return res.status(400).json({
+
+message:"Group is not complete yet ❌"
+
+});
+
+}
+
+
+
+// GET MEMBERS
+
+const members = await client.query(
+`
+SELECT id
+FROM group_members
+WHERE group_id=$1
+ORDER BY id
+`,
+[groupId]
+);
+
+
+
+let memberIds = members.rows.map(
+member=>member.id
+);
+
+
+
+// SHUFFLE
+
+memberIds.sort(
+()=>Math.random()-0.5
 );
 
 
 
 
+// TEMPORARY POSITIONS
+
+for(let i=0;i<memberIds.length;i++){
+
+await client.query(
+`
+UPDATE group_members
+SET position=$1
+WHERE id=$2
+`,
+[
+1000+i,
+memberIds[i]
+]
+);
+
+}
+
+
+
+// FINAL POSITIONS
+
+for(let i=0;i<memberIds.length;i++){
+
+await client.query(
+`
+UPDATE group_members
+SET position=$1
+WHERE id=$2
+`,
+[
+i+1,
+memberIds[i]
+]
+);
+
+}
+
+
+
+// UPDATE RANDOMIZED STATUS
+
+await client.query(
+`
+UPDATE groups
+SET randomized=true
+WHERE id=$1
+`,
+[groupId]
+);
+
+
+
+await client.query("COMMIT");
+
+
+
 res.json({
+
+success:true,
 
 message:"Members randomized successfully ✅"
 
 });
 
 
-
 }
 catch(error){
 
 
-console.log(error);
+await client.query("ROLLBACK");
+
+
+console.log(
+"RANDOMIZATION ERROR ❌",
+error
+);
 
 
 res.status(500).json({
@@ -790,7 +707,11 @@ error:error.message
 
 
 }
+finally{
 
+client.release();
+
+}
 
 
 });
