@@ -150,7 +150,6 @@ WHERE id=$1
 );
 
 
-
 if(groupResult.rows.length===0){
 
 return res.status(404).json({
@@ -161,10 +160,7 @@ message:"Group not found ❌"
 
 }
 
-
-
 const group=groupResult.rows[0];
-
 
 
 // Stop joining after randomization
@@ -178,9 +174,6 @@ message:"Group membership locked ❌"
 });
 
 }
-
-
-
 
 
 const memberCheck = await db.query(
@@ -201,7 +194,6 @@ userId
 );
 
 
-
 if(memberCheck.rows.length>0){
 
 return res.status(400).json({
@@ -211,10 +203,6 @@ message:"Already joined ❌"
 });
 
 }
-
-
-
-
 
 const positionResult = await db.query(
 
@@ -228,13 +216,8 @@ WHERE group_id=$1
 
 );
 
-
-
 const nextPosition =
 Number(positionResult.rows[0].count)+1;
-
-
-
 
 if(nextPosition > group.max_members){
 
@@ -245,10 +228,6 @@ message:"Group full ❌"
 });
 
 }
-
-
-
-
 
 await db.query(
 
@@ -439,8 +418,6 @@ message:"Group not found"
 }
 
 
-
-
 const receiver = await db.query(
 
 `
@@ -541,7 +518,6 @@ WHERE id=$1
 );
 
 
-
 if(group.rows.length===0){
 
 return res.status(404).json({
@@ -554,12 +530,7 @@ message:"Group not found"
 
 const data=group.rows[0];
 
-
-
 console.log("Group creator:",data.creator_id);
-
-
-
 
 // Check admin
 
@@ -575,9 +546,6 @@ message:"Only group admin can randomize ❌"
 
 }
 
-
-
-
 if(data.randomized){
 
 
@@ -589,10 +557,6 @@ message:"Already randomized ❌"
 
 
 }
-
-
-
-
 
 // Check group size
 
@@ -632,70 +596,70 @@ message:"Group is not complete yet ❌"
 // Get members
 
 
-const members = await db.query(
+// const members = await db.query(
 
+// `
+// SELECT id
+// FROM group_members
+// WHERE group_id=$1
+
+// `,
+
+// [groupId]
+
+// );
+
+
+
+
+
+// ================= RANDOMIZE MEMBERS =================
+
+const members = await db.query(
 `
 SELECT id
 FROM group_members
 WHERE group_id=$1
-
+ORDER BY id
 `,
-
 [groupId]
-
 );
 
 
+let memberIds = members.rows.map(
+member => member.id
+);
 
 
+// Shuffle member IDs
 
-let positions=[];
-
-
-
-for(let i=1;i<=members.rows.length;i++){
-
-positions.push(i);
-
-}
+memberIds.sort(
+() => Math.random() - 0.5
+);
 
 
+// Assign new positions
 
-
-positions.sort(()=>Math.random()-0.5);
-
-
-
-
-
-// Update positions
-
-
-for(let i=0;i<members.rows.length;i++){
-
+for(let i = 0; i < memberIds.length; i++){
 
 await db.query(
 
 `
 UPDATE group_members
-
 SET position=$1
-
 WHERE id=$2
-
 `,
 
 [
-positions[i],
-members.rows[i].id
+i + 1,
+memberIds[i]
 ]
 
 );
 
+loadMembers(groupId);
 
 }
-
-
 
 
 
