@@ -94,219 +94,85 @@ const db = require("../db");
 const auth = require("../middleware/auth");
 
 
-// ===================== INITIALIZE PAYMENT =====================
-
 router.post("/init", auth, async(req,res)=>{
 
-try{
+    try{
+
+        const {email, amount, groupId} = req.body;
+
+        const userId = req.user.id;
 
 
-const {
-email,
-amount,
-groupId,
-paymentType
+        const response = await axios.post(
 
-}=req.body;
+            "https://api.paystack.co/transaction/initialize",
 
+            {
 
+                email,
 
-let finalAmount;
+                amount:Number(amount) * 100,
 
+                currency:"GHS",
 
+                metadata:{
 
-// ================= WALLET =================
+                    userId:userId,
 
-if(paymentType === "wallet"){
+                    groupId:groupId,
 
+                    paymentType:"contribution"
 
-if(!amount){
+                }
 
-return res.status(400).json({
+            },
 
-message:"Amount is required"
+            {
 
-});
+                headers:{
 
-}
+                    Authorization:
+                    `Bearer ${process.env.PAYSTACK_SECRET}`,
 
+                    "Content-Type":"application/json"
 
-finalAmount = Number(amount);
+                }
 
+            }
 
-}
-
-
-
-// ================= CONTRIBUTION =================
-
-else if(paymentType === "contribution"){
+        );
 
 
+        res.json({
 
-if(!groupId){
+            reference:
+            response.data.data.reference,
 
-return res.status(400).json({
+            authorization_url:
+            response.data.data.authorization_url
 
-message:"Group ID is required"
-
-});
-
-}
-
+        });
 
 
-const group = await db.query(
+    }
 
-`
-SELECT contribution_amount
-FROM groups
-WHERE id=$1
-`,
+    catch(error){
 
-[groupId]
-
-);
+        console.log(
+            "INIT ERROR:",
+            error.message
+        );
 
 
+        res.status(500).json({
 
-if(group.rows.length === 0){
+            message:"Payment initialization failed"
 
+        });
 
-return res.status(404).json({
-
-message:"Group not found"
+    }
 
 });
-
-
-}
-
-
-
-finalAmount =
-Number(group.rows[0].contribution_amount);
-
-
-
-}
-
-
-
-
-else{
-
-
-return res.status(400).json({
-
-message:"Invalid payment type"
-
-});
-
-
-}
-
-
-
-
-const response = await axios.post(
-
-"https://api.paystack.co/transaction/initialize",
-
-{
-
-
-email,
-
-
-amount:
-finalAmount * 100,
-
-
-
-metadata:{
-
-
-userId:req.user.id,
-
-groupId:groupId || null,
-
-paymentType
-
-
-}
-
-
-},
-
-
-{
-
-headers:{
-
-
-Authorization:
-`Bearer ${process.env.PAYSTACK_SECRET}`,
-
-"Content-Type":"application/json"
-
-
-}
-
-}
-
-
-);
-
-
-
-res.json({
-
-reference:
-response.data.data.reference,
-
-
-authorization_url:
-response.data.data.authorization_url,
-
-
-amount:
-finalAmount
-
-
-});
-
-
-
-}
-
-catch(error){
-
-
-console.log(
-"PAYSTACK INIT ERROR:",
-error.response?.data || error.message
-);
-
-
-
-res.status(500).json({
-
-message:"Payment initialization failed"
-
-});
-
-
-}
-
-
-});
-
-
-
-
-
-// ===================== VERIFY PAYMENT =====================
 
 
 router.get("/verify/:ref", auth, async(req,res)=>{
@@ -321,6 +187,8 @@ try{
 const ref = req.params.ref;
 
 
+
+// Verify payment with Paystack
 
 const response = await axios.get(
 
@@ -341,13 +209,16 @@ Authorization:
 
 
 
-const data=response.data.data;
+const payment = response.data.data;
 
 
 
-if(data.status !== "success"){
+if(payment.status !== "success"){
+
 
 return res.status(400).json({
+
+success:false,
 
 message:"Payment not successful"
 
@@ -357,32 +228,29 @@ message:"Payment not successful"
 
 
 
-
-const amount =
-data.amount / 100;
+const amount = payment.amount / 100;
 
 
 
-const {
+// Get user from JWT
 
-userId,
+const userId = req.user.id;
 
-groupId,
 
-paymentType
 
-}=data.metadata;
+// Get group from Paystack metadata
 
+const groupId = payment.metadata.groupId;
 
 
 
 console.log(
-"VERIFY DATA:",
+"PAYMENT DATA:",
 {
 userId,
 groupId,
 amount,
-paymentType
+ref
 }
 );
 
@@ -393,14 +261,12 @@ await client.query("BEGIN");
 
 
 
+// CHECK DUPLICATE PAYMENT
 
-// CHECK DUPLICATE
-
-const duplicate =
-await client.query(
+const existing = await client.query(
 
 `
-SELECT *
+SELECT id
 FROM transactions
 WHERE reference=$1
 `,
@@ -411,7 +277,7 @@ WHERE reference=$1
 
 
 
-if(duplicate.rows.length > 0){
+if(existing.rows.length > 0){
 
 
 await client.query("ROLLBACK");
@@ -419,32 +285,31 @@ await client.query("ROLLBACK");
 
 return res.json({
 
-message:"Payment already verified"
+success:true,
+
+message:"Payment already processed"
 
 });
-
 
 }
 
 
 
-
-
-
-// ================= WALLET DEPOSIT ONLY =================
-
-
-if(paymentType === "wallet"){
-
+// =========================
+// 1. UPDATE USER WALLET
+// =========================
 
 
 await client.query(
 
 `
 UPDATE users
+
 SET wallet =
 COALESCE(wallet,0)+$1
+
 WHERE id=$2
+
 `,
 
 [
@@ -455,29 +320,66 @@ userId
 );
 
 
-}
 
 
-// ================= CONTRIBUTION =================
+// =========================
+// 2. SAVE TRANSACTION
+// =========================
 
 
-// ================= SAVE CONTRIBUTION =================
+await client.query(
+
+`
+INSERT INTO transactions
+(
+user_id,
+amount,
+reference,
+payment_type,
+status
+)
+
+VALUES($1,$2,$3,$4,$5)
+
+`,
+
+[
+userId,
+amount,
+ref,
+"contribution",
+"success"
+]
+
+);
 
 
-// Find group member
 
+
+
+// =========================
+// 3. FIND GROUP MEMBER
+// =========================
+
+console.log("CHECK MEMBER:", {
+    userId,
+    groupId
+});
 const member = await client.query(
 
 `
 SELECT id
+
 FROM group_members
-WHERE group_id=$1
-AND user_id=$2
+
+WHERE user_id=$1
+AND group_id=$2
+
 `,
 
 [
-    groupId,
-    userId
+userId,
+groupId
 ]
 
 );
@@ -486,21 +388,30 @@ AND user_id=$2
 
 if(member.rows.length === 0){
 
-    throw new Error(
-        "User is not a member of this group"
-    );
+
+throw new Error(
+"User is not a member of this group"
+);
+
 
 }
 
 
 
-const groupMemberId = member.rows[0].id;
+const groupMemberId =
+member.rows[0].id;
 
 
 
-// Insert successful contribution
+
+
+// =========================
+// 4. SAVE CONTRIBUTION
+// =========================
+
 
 await client.query(
+
 `
 INSERT INTO contributions
 (
@@ -516,6 +427,7 @@ contribution_date
 VALUES($1,$2,$3,$4,$5,$6,NOW())
 
 `,
+
 [
 groupMemberId,
 groupId,
@@ -524,28 +436,7 @@ ref,
 "success",
 true
 ]
-);
 
-
-
-
-
-// SAVE TRANSACTION
-
-await client.query(
-`
-INSERT INTO transactions
-(user_id, amount, reference, payment_type, status)
-
-VALUES($1,$2,$3,$4,$5)
-`,
-[
-    userId,
-    amount,
-    ref,
-    paymentType,
-    "success"
-]
 );
 
 
@@ -563,39 +454,38 @@ res.json({
 success:true,
 
 message:
+"Contribution paid successfully ✅",
 
-paymentType==="contribution"
-
-?
-
-"Contribution payment successful ✅"
-
-:
-
-"Wallet funded successfully ✅"
-
+amount:amount
 
 });
 
 
 
-
 }
 
+
 catch(error){
+
 
 
 await client.query("ROLLBACK");
 
 
+
 console.log(
+
 "VERIFY ERROR ❌",
+
 error.message
+
 );
 
 
 
 res.status(500).json({
+
+success:false,
 
 message:"Verification failed",
 
@@ -604,12 +494,15 @@ error:error.message
 });
 
 
-
 }
+
+
 
 finally{
 
+
 client.release();
+
 
 }
 
@@ -618,4 +511,4 @@ client.release();
 
 
 
-module.exports=router;
+module.exports = router;

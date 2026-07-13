@@ -4,8 +4,8 @@ console.log("APP JS LOADED ✅");
 
 
 // ===================== API SWITCH =====================
-//const API = "http://localhost:3000";
-const API= "https://susu-acc.onrender.com"
+const API = "http://localhost:3000";
+//const API= "https://susu-acc.onrender.com"
 
 
 // ===================== STATE =====================
@@ -334,143 +334,236 @@ console.log("Token in localStorage:", localStorage.getItem("token"));
 
 async function depositWallet(){
 
+    if(!token){
+        return show("Login required ❌");
+    }
 
-if(!token)
-return show("Login required ❌");
 
+    const email = document.getElementById("email").value.trim();
 
+    const amount = document.getElementById("depositAmount").value.trim();
 
-const email =
-document.getElementById("email").value;
 
+    if(!email || !amount){
 
-const amount =
-document.getElementById("depositAmount").value;
+        return show("Fill payment details ❌");
 
+    }
 
 
-if(!email || !amount){
+    if(Number(amount) <= 0){
 
-return show("Fill payment details ❌");
+        return show("Enter a valid amount ❌");
 
-}
+    }
 
 
 
-try{
+    try{
 
+        show("Initializing payment...");
 
-const response = await fetch(
 
-`${API}/paystack/init`,
+        const response = await fetch(
 
-{
+            `${API}/paystack/init`,
 
-method:"POST",
+            {
 
-headers:{
+                method:"POST",
 
+                headers:{
 
-"Content-Type":"application/json",
+                    "Content-Type":"application/json",
 
-"Authorization":
-"Bearer "+token
+                    "Authorization":"Bearer "+token
 
+                },
 
-},
 
+                body:JSON.stringify({
 
-body:JSON.stringify({
+                    email:email,
 
-email,
+                    amount:Number(amount),
 
-amount,
+                    paymentType:"wallet"
 
-paymentType:"wallet"
+                })
 
-})
+            }
 
+        );
 
-}
 
-);
 
+        const payment = await response.json();
 
 
-const payment =
-await response.json();
 
+        console.log("PAYSTACK INIT RESPONSE:", payment);
 
 
-if(!response.ok){
 
-return show(payment.message);
+        if(!response.ok){
 
-}
+            return show(payment.message || "Payment initialization failed ❌");
 
+        }
 
 
 
-const handler =
-PaystackPop.setup({
 
+        const handler = PaystackPop.setup({
 
-key:
-"pk_live_b99f70e00e05b7a053b2a0c053e6fafca414d645",
+            key:
+            "pk_live_b99f70e00e05b7a053b2a0c053e6fafca414d645",
 
 
-email,
+            email:email,
 
 
-amount:Number(amount)*100,
+            amount:Number(amount) * 100,
 
 
-currency:"GHS",
+            currency:"GHS",
 
 
-ref:payment.reference,
+            ref:payment.reference,
 
 
-callback:function(response){
 
+            callback:function(response){
 
-fetch(
 
-`${API}/paystack/verify/${response.reference}`
+                console.log(
+                    "PAYSTACK REFERENCE:",
+                    response.reference
+                );
 
-)
 
-.then(res=>res.json())
 
-.then(data=>{
+                show("Verifying payment...");
 
 
-show(data.message);
 
-balance();
+                fetch(
 
+                    `${API}/paystack/verify/${response.reference}`,
 
-});
+                    {
 
+                        method:"GET",
 
-}
+                        headers:{
 
+                            "Authorization":
+                            "Bearer "+token,
 
-});
+                            "Content-Type":
+                            "application/json"
 
+                        }
 
-handler.openIframe();
+                    }
 
+                )
 
 
-}
-catch(error){
+                .then(res=>res.json())
 
-console.log(error);
 
-show("Deposit failed ❌");
+                .then(data=>{
 
-}
+
+                    console.log(
+                        "VERIFY RESPONSE:",
+                        data
+                    );
+
+
+
+                    if(data.success){
+
+                        show(
+                            "Wallet funded successfully ✅"
+                        );
+
+
+                        // reload wallet balance
+                        balance();
+
+
+                    }
+                    else{
+
+                        show(
+                            data.message ||
+                            "Payment verification failed ❌"
+                        );
+
+                    }
+
+
+                })
+
+
+                .catch(error=>{
+
+                    console.log(
+                        "VERIFY ERROR:",
+                        error
+                    );
+
+
+                    show(
+                        "Verification error ❌"
+                    );
+
+
+                });
+
+
+
+            },
+
+
+
+            onClose:function(){
+
+                show(
+                    "Payment cancelled ❌"
+                );
+
+            }
+
+
+        });
+
+
+
+        handler.openIframe();
+
+
+
+    }
+
+
+    catch(error){
+
+
+        console.log(
+            "DEPOSIT ERROR:",
+            error
+        );
+
+
+        show(
+            "Deposit failed ❌"
+        );
+
+
+    }
 
 
 }
