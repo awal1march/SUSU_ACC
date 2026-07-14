@@ -282,87 +282,143 @@ setTimeout(()=>{
 }
 
 // ===================== BALANCE =====================
+// =====================
+// LOAD WALLET BALANCE
+// =====================
+
 async function balance(){
-
-  if(!token){
-    return show("Login required ❌");
-  }
-
-  try{
-console.log("TOKEN BEFORE BALANCE:", token);
-console.log("Token variable:", token);
-console.log("Token in localStorage:", localStorage.getItem("token"));
-    const res = await fetch(
-      `${API}/wallet/balance`,
-      {
-        method:"GET",
-
-        headers:{
-          "Authorization": "Bearer " + token
-        }
-      }
-    );
-
-
-    const data = await res.json();
-
-
-    if(!res.ok){
-      return show(data.message);
-    }
-
-
-    document.getElementById("bal").innerText =
-    "GHS " + data.balance;
-
-
-  }
-  catch(err){
-
-    console.log(err);
-
-    show("Balance error ❌");
-
-  }
-
-}
-
-
-// ===================== PAYSTACK PAYMENT =====================
-
-// ================= WALLET DEPOSIT =================
-
-async function depositWallet(){
 
     if(!token){
         return show("Login required ❌");
     }
 
 
-    const email = document.getElementById("email").value.trim();
+    try{
 
-    const amount = document.getElementById("depositAmount").value.trim();
+        console.log("TOKEN BEFORE BALANCE:", token);
+
+
+        const res = await fetch(
+
+            `${API}/wallet/balance`,
+
+            {
+
+                method:"GET",
+
+                headers:{
+
+                    "Authorization":
+                    "Bearer " + token
+
+                }
+
+            }
+
+        );
+
+
+        const data = await res.json();
+
+
+
+        if(!res.ok){
+
+            return show(
+                data.message || "Unable to load balance"
+            );
+
+        }
+
+
+
+        document.getElementById("bal").innerText =
+        "GHS " + Number(data.balance).toFixed(2);
+
+
+
+    }
+
+
+    catch(error){
+
+        console.log(
+            "BALANCE ERROR:",
+            error
+        );
+
+
+        show(
+            "Balance error ❌"
+        );
+
+    }
+
+}
+
+
+
+
+// =====================
+// WALLET DEPOSIT
+// =====================
+
+
+async function depositWallet(){
+
+
+    if(!token){
+
+        return show(
+            "Login required ❌"
+        );
+
+    }
+
+
+
+    const email =
+    document.getElementById("email").value.trim();
+
+
+
+    const amount =
+    document.getElementById("depositAmount").value.trim();
+
+
 
 
     if(!email || !amount){
 
-        return show("Fill payment details ❌");
+        return show(
+            "Fill payment details ❌"
+        );
 
     }
 
 
-    if(Number(amount) <= 0){
 
-        return show("Enter a valid amount ❌");
+    if(Number(amount)<=0){
+
+        return show(
+            "Enter valid amount ❌"
+        );
 
     }
+
 
 
 
     try{
 
-        show("Initializing payment...");
 
+        show(
+            "Initializing payment..."
+        );
+
+
+
+        // Send request to backend
 
         const response = await fetch(
 
@@ -374,9 +430,12 @@ async function depositWallet(){
 
                 headers:{
 
-                    "Content-Type":"application/json",
+                    "Content-Type":
+                    "application/json",
 
-                    "Authorization":"Bearer "+token
+
+                    "Authorization":
+                    "Bearer " + token
 
                 },
 
@@ -397,17 +456,26 @@ async function depositWallet(){
 
 
 
-        const payment = await response.json();
+
+        const payment =
+        await response.json();
 
 
 
-        console.log("PAYSTACK INIT RESPONSE:", payment);
+
+        console.log(
+            "PAYSTACK INIT RESPONSE:",
+            payment
+        );
 
 
 
         if(!response.ok){
 
-            return show(payment.message || "Payment initialization failed ❌");
+            return show(
+                payment.message ||
+                "Payment initialization failed ❌"
+            );
 
         }
 
@@ -416,20 +484,29 @@ async function depositWallet(){
 
         const handler = PaystackPop.setup({
 
+
+
             key:
             "pk_live_b99f70e00e05b7a053b2a0c053e6fafca414d645",
+
 
 
             email:email,
 
 
-            amount:Number(amount) * 100,
+
+            amount:
+            Number(amount) * 100,
+
 
 
             currency:"GHS",
 
 
-            ref:payment.reference,
+
+            ref:
+            payment.reference,
+
 
 
 
@@ -443,7 +520,9 @@ async function depositWallet(){
 
 
 
-                show("Verifying payment...");
+                show(
+                    "Verifying payment..."
+                );
 
 
 
@@ -458,17 +537,13 @@ async function depositWallet(){
                         headers:{
 
                             "Authorization":
-                            "Bearer "+token,
-
-                            "Content-Type":
-                            "application/json"
+                            "Bearer " + token
 
                         }
 
                     }
 
                 )
-
 
                 .then(res=>res.json())
 
@@ -485,17 +560,19 @@ async function depositWallet(){
 
                     if(data.success){
 
+
                         show(
                             "Wallet funded successfully ✅"
                         );
 
 
-                        // reload wallet balance
+
                         balance();
 
 
                     }
                     else{
+
 
                         show(
                             data.message ||
@@ -507,8 +584,8 @@ async function depositWallet(){
 
                 })
 
-
                 .catch(error=>{
+
 
                     console.log(
                         "VERIFY ERROR:",
@@ -529,13 +606,17 @@ async function depositWallet(){
 
 
 
+
             onClose:function(){
+
 
                 show(
                     "Payment cancelled ❌"
                 );
 
+
             }
+
 
 
         });
@@ -567,7 +648,6 @@ async function depositWallet(){
 
 
 }
-
 // ================= PAY CONTRIBUTION =================
 
 
