@@ -93,10 +93,9 @@ const axios = require("axios");
 const db = require("../db");
 const auth = require("../middleware/auth");
 
+router.post("/init", auth, async (req, res) => {
 
-router.post("/init", auth, async(req,res)=>{
-
-    try{
+    try {
 
         console.log("INIT BODY:", req.body);
 
@@ -108,36 +107,31 @@ router.post("/init", auth, async(req,res)=>{
             paymentType
         } = req.body;
 
-
-
+console.log("CONTRIBUTION CHECK:", {
+    email,
+    amount,
+    groupId,
+    paymentType
+});
         const userId = req.user.id;
 
 
-
-        // Check payment type
-        if(!paymentType){
+        if (!paymentType) {
 
             return res.status(400).json({
-
-                message:"Payment type is required"
-
+                message: "Payment type is required"
             });
 
         }
 
 
-
-        // Contribution payment must have groupId
-        if(paymentType === "contribution" && !groupId){
+        if (paymentType === "contribution" && !groupId) {
 
             return res.status(400).json({
-
-                message:"Group ID is required for contribution payment"
-
+                message: "Group ID is required for contribution payment"
             });
 
         }
-
 
 
 
@@ -149,22 +143,19 @@ router.post("/init", auth, async(req,res)=>{
 
                 email,
 
-                amount:Number(amount) * 100,
+                amount: Number(amount) * 100,
 
-                currency:"GHS",
-
-
-                metadata:{
+                currency: "GHS",
 
 
-                    userId:String(userId),
+                metadata: {
 
+                    userId: String(userId),
 
-                    groupId: groupId ? String(groupId) : null,
+                    groupId:
+                    groupId ? String(groupId) : null,
 
-
-                    paymentType:paymentType
-
+                    paymentType
 
                 }
 
@@ -173,13 +164,13 @@ router.post("/init", auth, async(req,res)=>{
 
             {
 
-                headers:{
+                headers: {
 
                     Authorization:
                     `Bearer ${process.env.PAYSTACK_SECRET}`,
 
-
-                    "Content-Type":"application/json"
+                    "Content-Type":
+                    "application/json"
 
                 }
 
@@ -205,231 +196,430 @@ router.post("/init", auth, async(req,res)=>{
     }
 
 
-    catch(error){
+    catch(error) {
 
 
         console.log(
-
-            "INIT ERROR:",
+            "INIT ERROR ❌",
             error.message
-
         );
 
 
         res.status(500).json({
 
-            message:"Payment initialization failed"
+            message:
+            "Payment initialization failed"
 
         });
 
 
     }
+
 
 });
 
-router.get("/verify/:ref", auth, async(req,res)=>{
-    console.log("VERIFY ROUTE STARTED ✅", req.params.ref);
 
-    const client = await db.connect();
 
-    try{
 
-        const ref = req.params.ref;
 
+router.get("/verify/:ref", auth, async (req,res)=>{
 
-        // Verify payment with Paystack
-        const response = await axios.get(
 
-            `https://api.paystack.co/transaction/verify/${ref}`,
-
-            {
-                headers:{
-                    Authorization:
-                    `Bearer ${process.env.PAYSTACK_SECRET}`
-                }
-            }
-
-        );
-
-
-        const payment = response.data.data;
-
-
-        if(payment.status !== "success"){
-
-            return res.status(400).json({
-
-                success:false,
-
-                message:"Payment not successful"
-
-            });
-
-        }
-
-
-        const amount = payment.amount / 100;
-
-
-        const userId = req.user.id;
-
-
-        console.log("WALLET PAYMENT:",{
-
-            userId,
-
-            amount,
-
-            ref
-
-        });
-
-
-
-        await client.query("BEGIN");
-
-
-
-        // Check duplicate payment
-
-        const existing = await client.query(
-
-        `
-        SELECT id
-        FROM transactions
-        WHERE reference=$1
-        `,
-
-        [ref]
-
-        );
-
-
-
-        if(existing.rows.length > 0){
-
-            await client.query("ROLLBACK");
-
-            return res.json({
-
-                success:true,
-
-                message:"Payment already processed"
-
-            });
-
-        }
-
-
-
-
-        // Update wallet
-
-        await client.query(
-
-        `
-        UPDATE users
-
-        SET wallet =
-        COALESCE(wallet,0)+$1
-
-        WHERE id=$2
-
-        `,
-
-        [
-            amount,
-            userId
-        ]
-
-        );
-
-
-
-
-
-        // Save transaction
-
-        await client.query(
-
-        `
-        INSERT INTO transactions
-        (
-        user_id,
-        amount,
-        reference,
-        payment_type,
-        status
-        )
-
-        VALUES($1,$2,$3,$4,$5)
-
-        `,
-
-        [
-            userId,
-            amount,
-            ref,
-            "wallet",
-            "success"
-        ]
-
-        );
-
-
-
-
-        await client.query("COMMIT");
-
-
-
-        res.json({
-
-            success:true,
-
-            message:
-            "Wallet funded successfully ✅",
-
-            amount:amount
-
-        });
-
-
-
-    }
-
-
-    catch(error){
-
-
-        await client.query("ROLLBACK");
-
-
-        console.log(
-    "VERIFY ERROR ❌",
-    error
+console.log(
+    "VERIFY STARTED ✅",
+    req.params.ref
 );
 
 
-        res.status(500).json({
 
-            success:false,
-
-            message:"Verification failed",
-
-            error:error.message
-
-        });
+const client = await db.connect();
 
 
-    }
+
+try {
 
 
-    finally{
+const ref = req.params.ref;
 
-        client.release();
 
-    }
+
+// Verify Paystack payment
+
+const response = await axios.get(
+
+`https://api.paystack.co/transaction/verify/${ref}`,
+
+{
+
+headers:{
+
+Authorization:
+`Bearer ${process.env.PAYSTACK_SECRET}`
+
+}
+
+}
+
+);
+
+
+
+const payment = response.data.data;
+
+
+
+if(payment.status !== "success"){
+
+
+return res.status(400).json({
+
+success:false,
+
+message:
+"Payment not successful"
+
+});
+
+
+}
+
+
+
+const amount =
+payment.amount / 100;
+
+
+
+const userId =
+req.user.id;
+
+
+
+const paymentType =
+payment.metadata.paymentType;
+
+
+
+const groupId =
+payment.metadata.groupId
+?
+Number(payment.metadata.groupId)
+:
+null;
+
+
+
+console.log(
+"PAYMENT DATA:",
+{
+userId,
+groupId,
+amount,
+paymentType,
+ref
+}
+);
+
+
+
+await client.query("BEGIN");
+
+
+
+
+
+// CHECK DUPLICATE
+
+const existing =
+await client.query(
+
+`
+SELECT id
+FROM transactions
+WHERE reference=$1
+`,
+
+[ref]
+
+);
+
+
+
+if(existing.rows.length > 0){
+
+
+await client.query("ROLLBACK");
+
+
+return res.json({
+
+success:true,
+
+message:
+"Payment already processed"
+
+});
+
+
+}
+
+
+
+
+
+// ===============================
+// CONTRIBUTION PAYMENT
+// ===============================
+
+if(paymentType === "contribution"){
+
+
+
+if(!groupId){
+
+throw new Error(
+"Group ID missing"
+);
+
+}
+
+
+
+// Find group member
+
+const member =
+await client.query(
+
+`
+SELECT id
+FROM group_members
+WHERE user_id=$1
+AND group_id=$2
+`,
+
+[
+userId,
+groupId
+]
+
+);
+
+
+
+if(member.rows.length === 0){
+
+
+throw new Error(
+"User is not a member of this group"
+);
+
+
+}
+
+
+
+const groupMemberId =
+member.rows[0].id;
+
+
+
+// Save contribution
+
+
+await client.query(
+
+`
+INSERT INTO contributions
+
+(
+group_member_id,
+group_id,
+amount,
+payment_reference,
+payment_status,
+paid,
+contribution_date
+)
+
+VALUES($1,$2,$3,$4,$5,$6,NOW())
+
+`,
+
+[
+
+groupMemberId,
+
+groupId,
+
+amount,
+
+ref,
+
+"success",
+
+true
+
+]
+
+);
+
+
+
+console.log(
+"CONTRIBUTION SAVED ✅"
+);
+
+
+
+}
+
+
+
+
+
+// ===============================
+// WALLET PAYMENT
+// ===============================
+
+
+if(paymentType === "wallet"){
+
+
+
+await client.query(
+
+`
+UPDATE users
+
+SET wallet =
+COALESCE(wallet,0)+$1
+
+WHERE id=$2
+
+`,
+
+[
+amount,
+userId
+]
+
+);
+
+
+
+}
+
+
+
+
+
+// SAVE TRANSACTION
+
+
+await client.query(
+
+`
+INSERT INTO transactions
+
+(
+user_id,
+amount,
+reference,
+payment_type,
+status
+)
+
+VALUES($1,$2,$3,$4,$5)
+
+`,
+
+[
+
+userId,
+
+amount,
+
+ref,
+
+paymentType,
+
+"success"
+
+]
+
+);
+
+
+
+await client.query("COMMIT");
+
+
+
+
+
+res.json({
+
+success:true,
+
+message:
+paymentType === "contribution"
+
+?
+"Contribution paid successfully ✅"
+
+:
+"Wallet funded successfully ✅",
+
+amount
+
+});
+
+
+
+}
+
+
+
+catch(error){
+
+
+
+await client.query("ROLLBACK");
+
+
+
+console.log(
+"VERIFY ERROR ❌",
+error.message
+);
+
+
+
+res.status(500).json({
+
+success:false,
+
+message:
+"Verification failed",
+
+error:
+error.message
+
+});
+
+
+
+}
+
+
+
+finally{
+
+
+client.release();
+
+
+}
 
 
 });
