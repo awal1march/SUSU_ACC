@@ -4,8 +4,8 @@ console.log("APP JS LOADED ✅");
 
 
 // ===================== API SWITCH =====================
-  const API = "http://localhost:3000";
-  //const API= "https://susu-acc.onrender.com"
+  //const API = "http://localhost:3000";
+  const API= "https://susu-acc.onrender.com"
 
 
 // ===================== STATE =====================
