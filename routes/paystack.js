@@ -98,9 +98,47 @@ router.post("/init", auth, async(req,res)=>{
 
     try{
 
-        const {email, amount, groupId} = req.body;
+        console.log("INIT BODY:", req.body);
+
+
+        const {
+            email,
+            amount,
+            groupId,
+            paymentType
+        } = req.body;
+
+
 
         const userId = req.user.id;
+
+
+
+        // Check payment type
+        if(!paymentType){
+
+            return res.status(400).json({
+
+                message:"Payment type is required"
+
+            });
+
+        }
+
+
+
+        // Contribution payment must have groupId
+        if(paymentType === "contribution" && !groupId){
+
+            return res.status(400).json({
+
+                message:"Group ID is required for contribution payment"
+
+            });
+
+        }
+
+
 
 
         const response = await axios.post(
@@ -115,17 +153,23 @@ router.post("/init", auth, async(req,res)=>{
 
                 currency:"GHS",
 
+
                 metadata:{
 
-                    userId:userId,
 
-                    groupId:groupId,
+                    userId:String(userId),
 
-                    paymentType:"contribution"
+
+                    groupId: groupId ? String(groupId) : null,
+
+
+                    paymentType:paymentType
+
 
                 }
 
             },
+
 
             {
 
@@ -133,6 +177,7 @@ router.post("/init", auth, async(req,res)=>{
 
                     Authorization:
                     `Bearer ${process.env.PAYSTACK_SECRET}`,
+
 
                     "Content-Type":"application/json"
 
@@ -143,10 +188,12 @@ router.post("/init", auth, async(req,res)=>{
         );
 
 
+
         res.json({
 
             reference:
             response.data.data.reference,
+
 
             authorization_url:
             response.data.data.authorization_url
@@ -154,13 +201,18 @@ router.post("/init", auth, async(req,res)=>{
         });
 
 
+
     }
+
 
     catch(error){
 
+
         console.log(
+
             "INIT ERROR:",
             error.message
+
         );
 
 
@@ -170,10 +222,10 @@ router.post("/init", auth, async(req,res)=>{
 
         });
 
+
     }
 
 });
-
 
 router.get("/verify/:ref", auth, async(req,res)=>{
 
@@ -240,17 +292,19 @@ const userId = req.user.id;
 
 // Get group from Paystack metadata
 
-const groupId = payment.metadata.groupId;
+const paymentType = payment.metadata.paymentType;
 
+const groupId = payment.metadata.groupId || null;
 
 
 console.log(
 "PAYMENT DATA:",
 {
-userId,
-groupId,
-amount,
-ref
+    userId,
+    groupId,
+    amount,
+    paymentType,
+    ref
 }
 );
 
@@ -363,27 +417,77 @@ ref,
 
 console.log("CHECK MEMBER:", {
     userId,
-    groupId
+    groupId,
+    typeOfGroupId: typeof groupId
 });
-const member = await client.query(
 
+
+const allMembers = await client.query(
 `
-SELECT id
-
+SELECT *
 FROM group_members
-
 WHERE user_id=$1
-AND group_id=$2
-
 `,
-
-[
-userId,
-groupId
-]
-
+[userId]
 );
 
+
+console.log(
+"USER GROUPS:",
+allMembers.rows
+);
+// =========================
+// 3. CHECK CONTRIBUTION PAYMENT
+// =========================
+
+
+let groupMemberId = null;
+
+
+if(paymentType === "contribution"){
+
+
+    if(!groupId){
+
+        throw new Error(
+            "Group ID missing for contribution"
+        );
+
+    }
+
+
+
+    const member = await client.query(
+
+    `
+    SELECT id
+    FROM group_members
+    WHERE user_id=$1
+    AND group_id=$2
+    `,
+
+    [
+        userId,
+        groupId
+    ]
+
+    );
+
+
+
+    if(member.rows.length === 0){
+
+        throw new Error(
+            "User is not a member of this group"
+        );
+
+    }
+
+
+    groupMemberId = member.rows[0].id;
+
+
+}
 
 
 if(member.rows.length === 0){
@@ -398,7 +502,7 @@ throw new Error(
 
 
 
-const groupMemberId =
+ groupMemberId =
 member.rows[0].id;
 
 
@@ -408,6 +512,9 @@ member.rows[0].id;
 // =========================
 // 4. SAVE CONTRIBUTION
 // =========================
+
+
+if(paymentType === "contribution"){
 
 
 await client.query(
@@ -438,6 +545,9 @@ true
 ]
 
 );
+
+
+}
 
 
 

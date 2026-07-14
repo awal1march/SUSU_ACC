@@ -5,7 +5,7 @@ console.log("APP JS LOADED ✅");
 
 // ===================== API SWITCH =====================
 //const API = "http://localhost:3000";
-const API= "https://susu-acc.onrender.com"
+  const API= "https://susu-acc.onrender.com"
 
 
 // ===================== STATE =====================
@@ -571,184 +571,120 @@ async function depositWallet(){
 // ================= PAY CONTRIBUTION =================
 
 
-async function payContribution(){
+async function payContribution(groupId) {
 
+    const token = localStorage.getItem("token");
 
-    const groupId =
-    localStorage.getItem("groupId");
-
-
-
-    if(!groupId){
-
-        return show("Join a group first ❌");
-
+    if (!token) {
+        alert("Please login first");
+        return;
     }
 
 
+    try {
 
-    if(!token){
-
-        return show("Login required ❌");
-
+        // Get current group details first
+        const groupResponse = await fetch(
+    `${API}/groups/${groupId}/current`,
+    {
+        headers:{
+            "Authorization":`Bearer ${token}`
+        }
     }
+);
+
+
+        const group = await groupResponse.json();
+
+
+        if (!groupResponse.ok) {
+
+            alert(group.message || "Failed to load group details");
+            return;
+
+        }
+
+
+        // Get logged in user details
+        const userResponse = await fetch(
+            "/auth/profile",
+            {
+                method:"GET",
+                headers:{
+                    "Authorization": `Bearer ${token}`
+                }
+            }
+        );
+
+
+        const user = await userResponse.json();
 
 
 
-    try{
+        if (!userResponse.ok){
+
+            alert("Unable to get user information");
+            return;
+
+        }
 
 
+
+        // Initialize Paystack payment
         const response = await fetch(
-
-            `${API}/paystack/init`,
-
+            "/paystack/init",
             {
 
                 method:"POST",
 
                 headers:{
 
-
                     "Content-Type":"application/json",
 
-
                     "Authorization":
-                    "Bearer "+token
-
+                    `Bearer ${token}`
 
                 },
 
 
                 body:JSON.stringify({
 
+                email:user.email,
 
-                    email:
-                    currentUser.email,
+                amount:group.contribution_amount,
 
+                groupId:groupId,
 
-                    groupId,
+                paymentType:"contribution"
 
-
-                    paymentType:"contribution"
-
-
-                })
-
+            })
 
             }
-
         );
 
 
 
-
-        const payment =
-        await response.json();
+        const data = await response.json();
 
 
 
         if(!response.ok){
 
-            return show(payment.message);
+            alert(
+                data.message || 
+                "Payment initialization failed"
+            );
+
+            return;
 
         }
 
 
 
+        // Redirect user to Paystack checkout
 
-        const handler =
-        PaystackPop.setup({
-
-
-            key:
-            "pk_live_b99f70e00e05b7a053b2a0c053e6fafca414d645",
-
-
-
-            email:
-            currentUser.email,
-
-
-
-            amount:
-            Number(payment.amount) * 100,
-
-
-
-            currency:"GHS",
-
-
-
-            ref:
-            payment.reference,
-
-
-
-            callback:function(response){
-
-
-
-                fetch(
-
-                `${API}/paystack/verify/${response.reference}`,
-
-                {
-
-
-                    method:"GET",
-
-
-                    headers:{
-
-
-                    "Authorization":
-                    "Bearer "+token
-
-
-                    }
-
-
-                }
-
-                )
-
-
-                .then(res=>res.json())
-
-
-                .then(data=>{
-
-
-                    show(data.message);
-
-
-
-                    if(data.success){
-
-
-                        loadMembers(groupId);
-
-
-                        
-
-
-                    }
-
-
-
-                });
-
-
-
-            }
-
-
-
-        });
-
-
-
-        handler.openIframe();
+        window.location.href =
+        data.authorization_url;
 
 
 
@@ -757,20 +693,17 @@ async function payContribution(){
 
     catch(error){
 
-
         console.log(
-        "PAY CONTRIBUTION ERROR:",
-        error
+            "PAYMENT ERROR:",
+            error
         );
 
 
-        show(
-        "Payment failed ❌"
+        alert(
+            "Something went wrong while starting payment"
         );
-
 
     }
-
 
 }
 async function processPayout(){

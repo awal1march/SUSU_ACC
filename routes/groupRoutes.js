@@ -1193,6 +1193,9 @@ if(existingContribution.rows.length > 0){
 
 // INSERT CONTRIBUTION
 
+if(paymentType === "contribution"){
+
+
 await client.query(
 
 `
@@ -1221,6 +1224,9 @@ true
 ]
 
 );
+
+
+}
 
 
 
