@@ -1,12 +1,15 @@
 const db = require("../db");
 
+
 async function processPayout(groupId) {
 
     const client = await db.connect();
 
+
     try {
 
         await client.query("BEGIN");
+
 
         // ================= GET GROUP =================
 
@@ -24,19 +27,33 @@ async function processPayout(groupId) {
             [groupId]
         );
 
-        if (groupResult.rows.length === 0) {
+
+        if(groupResult.rows.length === 0){
+
             throw new Error("Group not found");
+
         }
+
 
         const group = groupResult.rows[0];
 
+
+
         // ================= CHECK RANDOMIZATION =================
 
-        if (!group.randomized) {
-            throw new Error("Members must be randomized first");
+        if(!group.randomized){
+
+            throw new Error(
+                "Members must be randomized first"
+            );
+
         }
 
-        // ================= CHECK MEMBER COUNT =================
+
+
+
+        // ================= CHECK MEMBERS =================
+
 
         const membersResult = await client.query(
             `
@@ -47,13 +64,25 @@ async function processPayout(groupId) {
             [groupId]
         );
 
-        const totalMembers = Number(membersResult.rows[0].total);
 
-        if (totalMembers === 0) {
-            throw new Error("No members found");
+        const totalMembers =
+        Number(membersResult.rows[0].total);
+
+
+
+        if(totalMembers === 0){
+
+            throw new Error(
+                "No members found"
+            );
+
         }
 
-        // ================= CHECK CONTRIBUTIONS =================
+
+
+
+        // ================= CHECK PAYMENTS =================
+
 
         const paidResult = await client.query(
             `
@@ -62,17 +91,31 @@ async function processPayout(groupId) {
             WHERE group_id=$1
             AND paid=true
             AND payment_status='success'
+            AND processed=false
             `,
             [groupId]
         );
 
-        const totalPaid = Number(paidResult.rows[0].total);
 
-        if (totalPaid !== totalMembers) {
-            throw new Error("Not all members have paid");
+
+        const totalPaid =
+        Number(paidResult.rows[0].total);
+
+
+
+        if(totalPaid !== totalMembers){
+
+            throw new Error(
+                "Not all members have paid"
+            );
+
         }
 
-        // ================= FIND CURRENT RECEIVER =================
+
+
+
+        // ================= FIND RECEIVER =================
+
 
         const receiverResult = await client.query(
             `
@@ -82,7 +125,7 @@ async function processPayout(groupId) {
                 u.name
             FROM group_members gm
             JOIN users u
-            ON gm.user_id = u.id
+            ON gm.user_id=u.id
             WHERE gm.group_id=$1
             AND gm.position=$2
             `,
@@ -92,13 +135,27 @@ async function processPayout(groupId) {
             ]
         );
 
-        if (receiverResult.rows.length === 0) {
-            throw new Error("Receiver not found");
+
+
+        if(receiverResult.rows.length === 0){
+
+            throw new Error(
+                "Receiver not found"
+            );
+
         }
 
-        const receiver = receiverResult.rows[0];
 
-        // ================= CALCULATE PAYOUT =================
+
+        const receiver =
+        receiverResult.rows[0];
+
+
+
+
+
+        // ================= CALCULATE POT =================
+
 
         const amountResult = await client.query(
             `
@@ -107,41 +164,70 @@ async function processPayout(groupId) {
             WHERE group_id=$1
             AND paid=true
             AND payment_status='success'
+            AND processed=false
             `,
             [groupId]
         );
 
-        const payoutAmount = Number(amountResult.rows[0].total);
 
-        if (payoutAmount <= 0) {
-            throw new Error("No payout amount available");
+
+        const payoutAmount =
+        Number(amountResult.rows[0].total);
+
+
+
+        if(payoutAmount <= 0){
+
+            throw new Error(
+                "No payout amount available"
+            );
+
         }
 
-        // ================= PREVENT DUPLICATE PAYOUT =================
 
-        const duplicate = await client.query(
+
+
+
+        // ================= DUPLICATE CHECK =================
+
+
+        const duplicate =
+        await client.query(
             `
             SELECT id
             FROM payouts
             WHERE group_id=$1
-            AND position=$2
+            AND receiver_id=$2
+            AND payout_status='completed'
             `,
             [
                 groupId,
-                receiver.position
+                receiver.user_id
             ]
         );
 
-        if (duplicate.rows.length > 0) {
-            throw new Error("Payout already processed for this position");
+
+
+        if(duplicate.rows.length > 0){
+
+            throw new Error(
+                "Payout already processed"
+            );
+
         }
 
-        // ================= CREDIT RECEIVER WALLET =================
+
+
+
+
+        // ================= CREDIT WALLET =================
+
 
         await client.query(
             `
             UPDATE users
-            SET wallet = COALESCE(wallet,0) + $1
+            SET wallet =
+            COALESCE(wallet,0)+$1
             WHERE id=$2
             `,
             [
@@ -150,46 +236,71 @@ async function processPayout(groupId) {
             ]
         );
 
+
+
+
+
         // ================= SAVE PAYOUT =================
+
 
         await client.query(
             `
             INSERT INTO payouts
             (
                 group_id,
-                user_id,
+                receiver_id,
                 amount,
-                position,
-                status,
-                created_at
+                payout_status,
+                payout_date
             )
-            VALUES($1,$2,$3,$4,$5,NOW())
+
+            VALUES($1,$2,$3,$4,NOW())
+
             `,
             [
                 groupId,
                 receiver.user_id,
                 payoutAmount,
-                receiver.position,
                 "completed"
             ]
         );
 
-        // ================= CLEAR CONTRIBUTIONS =================
+
+
+
+
+        // ================= MARK CONTRIBUTIONS PROCESSED =================
+
 
         await client.query(
             `
-            DELETE FROM contributions
+            UPDATE contributions
+            SET processed=true
             WHERE group_id=$1
+            AND processed=false
             `,
-            [groupId]
+            [
+                groupId
+            ]
         );
+
+
+
+
+
 
         // ================= NEXT RECEIVER =================
 
+
         const nextPosition =
-            group.current_position >= group.max_members
-                ? 1
-                : group.current_position + 1;
+        group.current_position >= group.max_members
+        ?
+        1
+        :
+        group.current_position + 1;
+
+
+
 
         await client.query(
             `
@@ -203,31 +314,62 @@ async function processPayout(groupId) {
             ]
         );
 
+
+
+
+
+
         await client.query("COMMIT");
 
+
+
+
         return {
-            success: true,
-            receiver: receiver.name,
-            amount: payoutAmount,
+
+            success:true,
+
+            receiver:
+            receiver.name,
+
+            amount:
+            payoutAmount,
+
             nextPosition,
-            message: `${receiver.name} received GH₵${payoutAmount} successfully.`
+
+            message:
+            `${receiver.name} received GH₵${payoutAmount} successfully.`
+
         };
 
-    } catch (error) {
+
+
+    } catch(error){
+
 
         await client.query("ROLLBACK");
 
-        console.log("PAYOUT ERROR ❌", error.message);
+
+        console.log(
+            "PAYOUT ERROR ❌",
+            error.message
+        );
+
 
         throw error;
 
+
     } finally {
+
 
         client.release();
 
+
     }
 
+
 }
+
+
 
 module.exports = {
     processPayout

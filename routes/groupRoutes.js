@@ -610,9 +610,25 @@ member=>member.id
 
 // SHUFFLE
 
-memberIds.sort(
-()=>Math.random()-0.5
-);
+// ================= SHUFFLE MEMBERS =================
+
+for(let i = memberIds.length - 1; i > 0; i--){
+
+    const j = Math.floor(
+        Math.random() * (i + 1)
+    );
+
+
+    [
+        memberIds[i],
+        memberIds[j]
+    ] =
+    [
+        memberIds[j],
+        memberIds[i]
+    ];
+
+}
 
 
 
@@ -662,12 +678,13 @@ memberIds[i]
 await client.query(
 `
 UPDATE groups
-SET randomized=true
+SET 
+randomized=true,
+current_position=1
 WHERE id=$1
 `,
 [groupId]
 );
-
 
 
 await client.query("COMMIT");

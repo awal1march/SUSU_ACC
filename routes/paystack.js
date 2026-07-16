@@ -92,6 +92,7 @@ const router = express.Router();
 const axios = require("axios");
 const db = require("../db");
 const auth = require("../middleware/auth");
+const { processPayout } = require("../services/payoutService");
 
 router.post("/init", auth, async (req, res) => {
 
@@ -438,27 +439,22 @@ amount,
 payment_reference,
 payment_status,
 paid,
+processed,
 contribution_date
 )
 
-VALUES($1,$2,$3,$4,$5,$6,NOW())
+VALUES($1,$2,$3,$4,$5,$6,$7,NOW())
 
 `,
 
 [
-
 groupMemberId,
-
 groupId,
-
 amount,
-
 ref,
-
 "success",
-
-true
-
+true,
+false
 ]
 
 );
@@ -473,7 +469,41 @@ console.log(
 
 }
 
+// ===============================
+// AUTO PROCESS PAYOUT
+// ===============================
 
+try {
+
+    const payout =
+    await processPayout(groupId);
+
+
+    console.log(
+        "AUTO PAYOUT SUCCESS ✅",
+        payout
+    );
+
+
+}
+catch(error){
+
+
+    if(error.message === "Not all members have paid"){
+
+        console.log(
+            "Waiting for other members payments..."
+        );
+
+
+    }
+    else{
+
+        throw error;
+
+    }
+
+}
 
 
 
